@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "d'kluter-ai-response"
+name = "dkluter-ai-response"
 version = "0.1.0"
 description = ""
 authors = ["nishi-v <nishitav@futuresoftindia.com>"]
