@@ -26,45 +26,45 @@ def gen_batch_response(api: str, img: Image.Image, types: list) -> tuple[dict, f
         google_search = GoogleSearch(),
     )
 
-    prompt_text : str= f'"types": {types}' + """
-    Analyze the given image and the types given with it, and generate a concise, accurate title. If there is a brand name or title, identify it with a max length of 100 characters.
-
-    The description should focus only on the foreground object(s) and be no more than 80 words, providing relevant details about their characteristics, actions, or context while ignoring the background. If you are able to identify a known product in the image, please provide its details in the description rather than a simple captioning of what it visible. E.g., for a known book by an author, mention when the book was released, the publisher, the genre, and a short summary of what the book is about rather than just captioning the text and image on the front cover of the book.    
+    prompt_text = """
+        Analyze the given image and the types given with it, and generate a concise, accurate title. If there is a brand name or title, identify it with a max length of 100 characters.
     
-    The tags should be structured hierarchically, first provide relevant tags starting from broad categories, moving on to more specific attributes. Avoid color-related visual tags. Max limit to tags is 50 characters.
+        The description should focus only on the foreground object(s) and be no more than 80 words, providing relevant details about their characteristics, actions, or context while ignoring the background. If you are able to identify a known product in the image, please provide its details in the description rather than a simple captioning of what it visible. E.g., for a known book by an author, mention when the book was released, the publisher, the genre, and a short summary of what the book is about rather than just captioning the text and image on the front cover of the book.    
+        The tags should be structured hierarchically, first provide relevant tags starting from broad categories, moving on to more specific attributes. Avoid color-related visual tags. Max limit to tags is 50 characters.
+        Always generate relevant field name, type and value based on the objects and types provided. Field names should ALWAYS be in list format.
     
-    Field name with antotal limit of 50 characters. Field Value with max length of 500 characters. Field types can only be of TEXT, NUMBER, DATE, LOCATION. Field value should ALWAYS be a list and not empty.
-
-    View this as a smarter OCR when text is present - extract all relevant details and supply them in the appropriate fields. Use the search tool to identify relevant attributes. In case of a known product, identify model number, SKU, etc. E.g., for an image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. Provide fields with values as objects within "tags" as a key-value pair.
+        Field name with a total limit of 50 characters. Field Value with max length of 500 characters. Field types can only be of TEXT, NUMBER, DATE, LOCATION. Field should ALWAYS be present and NON EMPTY.
     
-    Return the response strictly in the following JSON format, without any additional text, explanation, or preamble.
-    
-    Example format:
-    {
-    "Data": {
-        "title": "To Kill a Mockingbird by Harper Lee",
-        "description": "A gripping, heart-wrenching, and wholly remarkable tale of coming-of-age in a South poisoned by virulent prejudice. It views a world of great beauty and savage inequities through the eyes of a young girl, as her father—a crusading local lawyer—risks everything to defend a black man unjustly accused of a terrible crime.",
-        "tags": [
-        "Book",
-        "Classic",
-        "Literature",
-        "Novel",
-        "Justice"
-        ],
-        "fields": [
-            {
-                "field_name": "ISBN",
-                "field_type": "number",
-                "field_value": ["9780061120084"]
-            },
-            {
-                "field_name": "Genre",
-                "field_type": "text",
-                "field_value": ["Fiction"]
-            }
-            ]}
-    }
-    """
+        View this as a smarter OCR when text is present - extract all relevant details and supply them in the appropriate fields. Use the search tool to identify relevant attributes. In case of a known product, identify model number, SKU, etc. E.g., for an image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. Provide fields with values as objects within "tags" as a key-value pair.
+        Return the response strictly in the following JSON format, without any additional text, explanation, or preamble.
+        Example format:
+        {
+        "Data": {
+            "title": "To Kill a Mockingbird by Harper Lee",
+            "description": "A gripping, heart-wrenching, and wholly remarkable tale of coming-of-age in a South poisoned by virulent prejudice. It views a world of great beauty and savage inequities through the eyes of a young girl, as her father—a crusading local lawyer—risks everything to defend a black man unjustly accused of a terrible crime.",
+            "tags": [
+            "Book",
+            "Classic",
+            "Literature",
+            "Novel",
+            "Justice"
+            ],
+            "fields": [
+                {
+                    "field_name": "ISBN",
+                    "field_type": "number",
+                    "field_value": ["9780061120084"]
+                },
+                {
+                    "field_name": "Genre",
+                    "field_type": "text",
+                    "field_value": ["Fiction"]
+                }
+                ]}
+        }
+        """ 
+    prompt_text += f'\nThese are the tag categories to which the object belongs, which you can use as an additional reference to narrow down your search domain: "types": {types}'
+    # print(prompt_text)
 
     start_time = time.time()
     response = client.models.generate_content(
@@ -99,7 +99,7 @@ def main():
     load_dotenv(ENV_PATH)
 
     # Image file
-    img_dir :str = os.path.join(dir, 'AssetImages')
+    img_dir :str = os.path.join(dir, 'asset_images')
 
     # Get API URL from environment variables
     GEMINI_API_KEY :str = os.environ["GEMINI_API_KEY"]
@@ -145,6 +145,9 @@ def main():
 
             fields = ', '.join(fields_data)
 
+            # Store the complete JSON response
+            json_response = json.dumps(response_data)
+
             # Storing all data in a single result
             results.append({
                 "Image": img_name,
@@ -153,7 +156,8 @@ def main():
                 "Description": description,
                 "Tags": tags,
                 "Fields": fields,
-                "Time": time_taken
+                "Time": time_taken,
+                "Json Response": json_response
             })
 
         except Exception as e:
@@ -166,7 +170,8 @@ def main():
                 "Description": "",
                 "Tags": "",
                 "Fields": f"Error: {str(e)}",
-                "Time": 0.0
+                "Time": 0.0,
+                "Json Response": ""
             })
             continue
 
