@@ -122,3 +122,74 @@ gas lighter:
   },
   "Status": "ok"
 }
+
+
+AFTER ADDING GOOGLE SEARCH:
+1. PADLOCK KEY:
+{
+  "Data": {
+    "title": "Godrej Nav-Tal 7 Levers Padlock with Keys",
+    "description": "A gold-colored Godrej Nav-Tal padlock with a silver shackle is displayed alongside three keys. The padlock features the brand name 'Godrej' and 'NAV-TAL 7 Levers' on its face. The keys are attached to a silver ring.",
+    "tags": [
+      "Security",
+      "Lock",
+      "Padlock",
+      "Godrej",
+      "Nav-Tal",
+      "Keys",
+      "7 Levers"
+    ]
+  }
+}
+
+{
+  "Data": {
+    "title": "Godrej Nav-Tal 7 Levers Padlock",
+    "description": "A gold-colored Godrej Nav-Tal padlock with a silver shackle is displayed alongside three matching keys. The padlock features the brand name 'Godrej' above the 'NAV-TAL' model name and '7 Levers' marking, indicating its security level. The keys are attached to a ring, suggesting they belong to the lock.",
+    "tags": [
+      "Security",
+      "Lock",
+      "Padlock",
+      "Godrej",
+      "Nav-Tal",
+      "7 Levers",
+      "Keys"
+    ]
+  }
+}
+
+
+2. SD CARD:
+{
+  "Data": {
+    "title": "Thinkware Dash Cam Micro SD Card 32GB",
+    "description": "A black Thinkware Dash Cam Micro SD card with a capacity of 32GB. The card is labeled with 'Micro SD HC I' and 'CLASS 10'. The model number is LST3DV451.",
+    "tags": [
+      "Electronics",
+      "Memory Card",
+      "Micro SD Card",
+      "Thinkware",
+      "Dash Cam",
+      "32GB",
+      "LST3DV451"
+    ]
+  }
+}
+
+{
+
+  "Data": {
+    "title": "Thinkware Dash Cam MicroSD Card",
+    "description": "A Thinkware Dash Cam MicroSD card with a storage capacity of 32GB. The card is labeled as Class 10 and has the model number LST3DV451 printed on it. It is designed for use with Thinkware dash cameras.",
+    "tags": [
+      "Electronics",
+      "Memory Card",
+      "MicroSD Card",
+      "Thinkware",
+      "Dash Cam",
+      "32GB",
+      "Class 10",
+      "LST3DV451"
+    ]
+  }
+}
