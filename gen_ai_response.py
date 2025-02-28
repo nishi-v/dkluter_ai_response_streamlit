@@ -106,7 +106,7 @@ def main():
 
     csv_file :str = os.path.join(dir, 'Items_List.csv')
     # print(csv_file)
-    df = pd.read_csv(csv_file)  # Renamed to df to avoid confusion
+    df = pd.read_csv(csv_file)  
     # print(df)
 
     results = []
@@ -119,7 +119,7 @@ def main():
         types = row['Types'].split(', ') if isinstance(row['Types'], str) else []
 
         image = get_image(img_file)
-        print(f"Processing {index+1}: {img_name}")#type:ignore
+        print(f"Processing {index+1}: {img_name}") #type:ignore
         try:
             # Generate Response
             response_data, time_taken = gen_batch_response(GEMINI_API_KEY, image, types)
@@ -158,7 +158,7 @@ def main():
 
         except Exception as e:
             print(f"Error in getting response for {img_name}: {e}")
-            # Add an empty result to maintain alignment with the input data
+            # Adding an empty resul
             results.append({
                 "Image": img_name,
                 "Types": ", ".join(types),
