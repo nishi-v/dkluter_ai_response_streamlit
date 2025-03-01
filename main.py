@@ -30,10 +30,14 @@ def gen_batch_response(api: str, img: Image.Image, types: list) -> tuple[dict, f
         Analyze the given image and the types given with it, and generate a concise, accurate title. If there is a brand name or title, identify it with a max length of 100 characters.
     
         The description should focus only on the foreground object(s) and be no more than 80 words, providing relevant details about their characteristics, actions, or context while ignoring the background. If you are able to identify a known product in the image, please provide its details in the description rather than a simple captioning of what it visible. E.g., for a known book by an author, mention when the book was released, the publisher, the genre, and a short summary of what the book is about rather than just captioning the text and image on the front cover of the book.    
+        
         The tags should be structured hierarchically, first provide relevant tags starting from broad categories, moving on to more specific attributes. Avoid color-related visual tags. Max limit to tags is 50 characters.
-        Always generate relevant field name, type and value based on the objects and types provided. Field names should ALWAYS be in list format.
+        
+        Field should ALWAYS be present and NON EMPTY.
+        
+        ALWAYS generate relevant field name, type and value based on the objects and types provided. Field names should ALWAYS be in list format.
     
-        Field name with a total limit of 50 characters. Field Value with max length of 500 characters. Field types can only be of TEXT, NUMBER, DATE, LOCATION. Field should ALWAYS be present and NON EMPTY.
+        Field name with a total limit of 50 characters. Field Value with max length of 500 characters. Field types can only be of TEXT, NUMBER, DATE, LOCATION. 
     
         View this as a smarter OCR when text is present - extract all relevant details and supply them in the appropriate fields. Use the search tool to identify relevant attributes. In case of a known product, identify model number, SKU, etc. E.g., for an image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. Provide fields with values as objects within "tags" as a key-value pair.
         Return the response strictly in the following JSON format, without any additional text, explanation, or preamble.
