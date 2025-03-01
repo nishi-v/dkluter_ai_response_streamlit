@@ -142,7 +142,7 @@ def main():
         types = row['Types'].split(', ') if isinstance(row['Types'], str) else []
 
         image = get_image(img_file)
-        print(f"Processing {index+1}: {img_name}") 
+        print(f"Processing {index+1}: {img_name}")#type:ignore 
         try:
             # Generate Response
             response_data, time_taken = gen_batch_response(GEMINI_API_KEY, image, types, prompt_text, count_tokens=True)
