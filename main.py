@@ -99,7 +99,7 @@ def main():
         
         ALWAYS generate relevant field name, type, value based on the objects and types provided. Field names should ALWAYS be in list format.
     
-        Field should ALWAYS be present and NON EMPTY. If field value can't be determined, provide best possible field. Field type can be: TEXT, NUMBER, DATE, LOCATION. Categorize alphanumeric values ('12 AB'), or numbers with units ('15 mins') as TEXT. Numeric values ('123 45') should have whitespace removed and be categorized as NUMBER. If possible, add LOCATION type Field.
+        Field should ALWAYS be present and NON EMPTY. If field value can't be determined, provide best possible field. Field type can be: TEXT, NUMBER, DATE, LOCATION. Categorize alphanumeric values ('12 AB') and numbers with units ('15 mm') as TEXT. Numeric values ('123 45') should have whitespace removed and be categorized as NUMBER. If possible, add LOCATION type Field.
 
         Each field must have: Meaningful 'field_name' (max 50 characters), Valid 'field_type', Non-empty 'field_value' (max 500 characters)
             
