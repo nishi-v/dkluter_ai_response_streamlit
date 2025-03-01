@@ -90,9 +90,8 @@ This will start generating the responses for all the images and corresponding ty
 
 ## General Format of Response for an Input
 - Input given by User:
-image = image.jpg (jpg, jpeg, or png Format)
-
-types = "type_1", "type_2"
+    - image = image.jpg (jpg, jpeg, or png Format)
+    - types = "type_1", "type_2"
 
 - Response Structure - JSON Format:
 ```json
