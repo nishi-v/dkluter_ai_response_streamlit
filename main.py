@@ -8,6 +8,7 @@ import time
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 import pandas as pd
 import json
+import sys
 
 def get_image(img_file: str) -> Image.Image:
     try:
@@ -33,12 +34,17 @@ def gen_batch_response(api: str, img: Image.Image, types: list) -> tuple[dict, f
         
         The tags should be structured hierarchically, first provide relevant tags starting from broad categories, moving on to more specific attributes. Avoid color-related visual tags. Max limit to tags is 50 characters.
         
-        Field should ALWAYS be present and NON EMPTY.
-        
         ALWAYS generate relevant field name, type and value based on the objects and types provided. Field names should ALWAYS be in list format.
     
-        Field name with a total limit of 50 characters. Field Value with max length of 500 characters. Field types can only be of TEXT, NUMBER, DATE, LOCATION. 
-    
+        Field should ALWAYS be present and NON EMPTY. If a field value cannot be determined, provide the best possible field. If possible add LOCATION type Field if found.
+
+        Each field **must** have:
+        - A meaningful 'field_name' (max 50 characters).
+        - A valid 'field_type' (TEXT, NUMBER, DATE, LOCATION).
+        - A **non-empty 'field_value'** (max 500 characters).
+
+        Ensure that **no field_name, field_type, or field_value is missing**.
+            
         View this as a smarter OCR when text is present - extract all relevant details and supply them in the appropriate fields. Use the search tool to identify relevant attributes. In case of a known product, identify model number, SKU, etc. E.g., for an image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. Provide fields with values as objects within "tags" as a key-value pair.
         Return the response strictly in the following JSON format, without any additional text, explanation, or preamble.
         Example format:
@@ -95,6 +101,14 @@ def gen_batch_response(api: str, img: Image.Image, types: list) -> tuple[dict, f
         return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(end, 2)
 
 def main():
+    if len(sys.argv) > 1:
+        csv_file = sys.argv[1]
+        print(f"Received csv_file: {csv_file}")
+    else:
+        print("CSV file not provided. Exiting...")
+        sys.exit(1)  # Exit the script with an error code
+
+    print(f"Generating Responses...")
     # Set current working directory
     dir = Path(os.getcwd())
 
@@ -108,7 +122,6 @@ def main():
     # Get API URL from environment variables
     GEMINI_API_KEY :str = os.environ["GEMINI_API_KEY"]
 
-    csv_file :str = os.path.join(dir, 'Items_List.csv')
     # print(csv_file)
     df = pd.read_csv(csv_file)  
     # print(df)
@@ -144,7 +157,13 @@ def main():
                 field_name = field.get("field_name", "")
                 field_type = field.get("field_type", "")
                 field_values = field.get("field_value", [])
-                field_value_str = ', '.join(str(v) for v in field_values)
+                # Ensure field_value is treated correctly
+                if isinstance(field_values, list):
+                    # Convert list of single characters into a proper string if needed
+                    field_value_str = ', '.join([''.join(v) if isinstance(v, list) else str(v) for v in field_values])
+                else:
+                    field_value_str = str(field_values)  # Handle non-list cases safely
+
                 fields_data.append(f"{field_name} ({field_type}): {field_value_str}")
 
             fields = ', '.join(fields_data)
@@ -166,7 +185,7 @@ def main():
 
         except Exception as e:
             print(f"Error in getting response for {img_name}: {e}")
-            # Adding an empty resul
+            # Adding an empty result
             results.append({
                 "Image": img_name,
                 "Types": ", ".join(types),
