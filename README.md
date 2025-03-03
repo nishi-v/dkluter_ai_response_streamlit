@@ -126,6 +126,7 @@ python3 main.py -i "img.jpg" -T "type_1, type_2, type_3"
 
 Note:
 1. If batch input in CSV format is given, then output will be stored in that CSV file only with a SUMMARY row at the end.
+
 | SUMMARY | Total Images | Successfully Processed | Failed | Total Time | Average Time per Image |
 |----------|----------|----------|----------|----------|----------|
 
