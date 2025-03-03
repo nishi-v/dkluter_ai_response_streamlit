@@ -246,7 +246,9 @@ AssetImages/
 extra_prompts.txt
 asset_images/download.jpeg
 asset_images/61eoeu1UpRL._UF1000,1000_QL80_.jpg
-.~lock.Items_List.csv#
+# .~lock.Items_List.csv#
 Responses
 Responses.txt
 py_scripts/
+# .~lock.list_2.csv#
+.~lock*

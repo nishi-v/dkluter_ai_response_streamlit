@@ -71,7 +71,7 @@ Note: Sample images are present in asset_images folder.
 
 
 ### Step 5: Create a csv file
-Create a CSV file in desired format and save it in root folder. 
+Create a CSV file in desired format and save it in csv_files folder. 
 Ensure the CSV file follows this structure. The columns for Title, Description, Tags, Fields, Time, and JSON Response can be left empty—these will be automatically filled by the script.
 
 | S.No. | Image | Types | Title | Description | Tags | Fields | Time | Json Response |
@@ -80,15 +80,57 @@ Ensure the CSV file follows this structure. The columns for Title, Description, 
 | 2 | img_name_1.jpg | type_2_1, type_2_2 | | | | | | |
 | 3 | img_name_1.jpg | type_3_1, type_3_2 | | | | | | |
 
-Note: Sample CSV file with responses is present in root folder - Items_List.csv.
+Note: 
+1. Sample CSV files with responses is present in csv_files
+    - For batch processing input csv file -> output csv file.
+    
+    Example: Items_List.csv, list_2.csv
+
+    - For single image file, input image name and type of object -> output csv file. WIll be saved in above format.
+
+    Example: output_00001.csv
+
 
 ## Step 6: Run the python script
-Run the python script by passing your csv file name. For example-
-- python3 main.py data.csv
+There are 4 arguments that you can pass with the python script-
+1. -f : Use this to pass the name of the csv file for which you want to generate responses.
+2. -t : Use this if you want the token_count generated for the csv file.
+3. -i : Use this if you want to generate the response with single image. ALso pass -T argument with it for types of that particular image.
+4. -T : Use this if you want to generate the single image response pass with argument (-i). And use it alone if you just want to generate token counts for a certain type of object, make sure to just add the types with argument.
 
-This will start generating the responses for all the images and corresponding types and at last will store back the results in the desired place in the same data.csv file you passed.
+Usage:
+- If Batch Responses are required for input CSV File
+```bash
+python3 main.py -f data.csv
+```
 
-## General Format of Response for an Input
+- If batch Responses and token count is required for input csv file
+```bash
+python3 main.py -f data.csv -t
+```
+
+- If just token count is required and no response required for the prompt 
+```bash
+python3 main.py -T "type_1, type_2, type_3"
+```
+
+- If Single Image Response is required with token count
+```bash
+python3 main.py -i "img.jpg" -T "type_1, type_2, type_3" -t
+```
+
+- If Single Image Response is required without token count 
+```bash
+python3 main.py -i "img.jpg" -T "type_1, type_2, type_3"
+```
+
+Note:
+1. If batch input in CSV format is given, then output will be stored in that CSV file only with a SUMMARY row at the end.
+| SUMMARY | Total Images | Successfully Processed | Failed | Total Time | Average Time per Image |
+
+2. If single image and corresponding type is provided then an automatic new output_8.csv file will be saved in csv_files folder with the response.
+
+## General JSON Format of Response for an Input
 - Input given by User:
     - image = image.jpg (jpg, jpeg, or png Format)
     - types = "type_1", "type_2"
