@@ -222,5 +222,3 @@ pip install -r requirements.txt  # If using requirements.txt
 3. CSV File Not Updating
 - Ensure the CSV file is properly formatted as per the given structure.
 - Check if the script has necessary write permissions for the file.
-
-## THANK YOU!
