@@ -93,42 +93,52 @@ Note:
 
 ## Step 6: Run the python script
 There are 5 arguments that you can pass with the python script-
-1. -f : Use this to pass the name of the csv file for which you want to generate responses.
-2. -t : Use this if you want the token_count generated for the csv file.
-3. -i : Use this if you want to generate the response with single image. ALso pass -T argument with it for types of that particular image.
-4. -T : Use this if you want to generate the single image response pass with argument (-i). And use it alone if you just want to generate token counts for a certain type of object, make sure to just add the types with argument.
-5. -c : maximum number of concurrent requests in case of batch processing. By default it is 5.
+### A. Batch Response Generation using CSV
+1. -f <filename>: Specifies the CSV file for batch response generation.
+2. -c <number>: (Optional) Sets the maximum number of concurrent requests during batch processing. The default value is 5.
+
+### B. Single Image Response Generation 
+1. -i <image_filename>: Specifies the image file for response generation.
+2. -T <type>: Specifies the types/categories associated with the image. This argument must be used along with -i.
+- It can also be used alone to get only the token count, without generating a response.
+
+### C. Universal Argument
+- Applicable to both batch and single-image processing:
+1. -t : Enables token count calculation for the input data (CSV file or image).
 
 Usage:
-- If Batch Responses are required for input CSV File
+1. Batch Responses Using CSV
+- Generate responses for a CSV file (default concurrent tasks = 5):
 ```bash
 python3 main.py -f data.csv
 ```
 
-- If batch Responses and token count is required for input csv file
+- Generate responses and get the token count for a CSV file:
 ```bash
 python3 main.py -f data.csv -t
 ```
 
-- If just token count is required and no response required for the prompt 
+- Generate responses and token count for a CSV file with a custom concurrency limit (e.g., 10):
 ```bash
-python3 main.py -T "type_1, type_2, type_3"
+python3 main.py -f data.csv -t -c 10
 ```
 
-- If Single Image Response is required with token count
+2. Single Responses 
+- Generate a response for a single image and retrieve the token count:
 ```bash
 python3 main.py -i "img.jpg" -T "type_1, type_2, type_3" -t
 ```
 
-- If Single Image Response is required without token count 
+- Generate a response for a single image (without token count): 
 ```bash
 python3 main.py -i "img.jpg" -T "type_1, type_2, type_3"
 ```
 
-- If batch Responses and token count is required for input csv file with concurrent tasks = 10
+- Get only the token count (without generating a response):
 ```bash
-python3 main.py -f data.csv -t -c 10
+python3 main.py -T "type_1, type_2, type_3"
 ```
+
 
 Note:
 1. If batch input in CSV format is given, then output will be stored in that CSV file only with a SUMMARY row at the end.
