@@ -286,7 +286,7 @@ def main():
         results_df = pd.concat([results_df, summary_df], ignore_index=True)
 
         # Save the results to CSV, replacing the original file
-        results_df.to_csv(csv_file, index=False)
+        results_df.to_csv(csv_file_path, index=False)
 
         # Print summary statistics
         print(f"SUMMARY:")
@@ -296,7 +296,7 @@ def main():
         print(f"Total Time: {total_time:.2f} seconds")
         print(f"Average Time per Image: {avg_time:.2f} seconds")
         
-        print(f"Processing complete! Results saved in {csv_file}.")
+        print(f"Processing complete! Results saved in {csv_file_path}.")
 
     elif csv_file is None and object_type is not None:
         if single_img_file is None:
