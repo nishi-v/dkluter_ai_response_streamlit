@@ -92,11 +92,12 @@ Note:
 
 
 ## Step 6: Run the python script
-There are 4 arguments that you can pass with the python script-
+There are 5 arguments that you can pass with the python script-
 1. -f : Use this to pass the name of the csv file for which you want to generate responses.
 2. -t : Use this if you want the token_count generated for the csv file.
 3. -i : Use this if you want to generate the response with single image. ALso pass -T argument with it for types of that particular image.
 4. -T : Use this if you want to generate the single image response pass with argument (-i). And use it alone if you just want to generate token counts for a certain type of object, make sure to just add the types with argument.
+5. -c : maximum number of concurrent requests in case of batch processing. By default it is 5.
 
 Usage:
 - If Batch Responses are required for input CSV File
@@ -122,6 +123,11 @@ python3 main.py -i "img.jpg" -T "type_1, type_2, type_3" -t
 - If Single Image Response is required without token count 
 ```bash
 python3 main.py -i "img.jpg" -T "type_1, type_2, type_3"
+```
+
+- If batch Responses and token count is required for input csv file with concurrent tasks = 10
+```bash
+python3 main.py -f data.csv -t -c 10
 ```
 
 Note:

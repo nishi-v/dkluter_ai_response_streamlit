@@ -253,3 +253,4 @@ py_scripts/
 # .~lock.list_2.csv#
 .~lock*
 output_*.csv
+csv_files/
