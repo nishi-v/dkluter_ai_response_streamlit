@@ -261,3 +261,7 @@ csv_files/output_00001.csv
 extra/
 *.csv
 asset_images
+*.jpg
+*.jpeg
+*.png
+
