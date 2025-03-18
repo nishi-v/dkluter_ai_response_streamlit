@@ -23,7 +23,7 @@ os.makedirs(CSV_SAVE_DIR, exist_ok=True)
 # Sample CSV Format
 sample_data = pd.DataFrame({
     "Image": ["Image1.png", "Image2.jpg"],
-    "Types": ["Type1", "Type2"],
+    "Types": ["Type1, Type2", "Type3, Type4"],
     "Title": ["", ""],
     "Description": ["", ""],
     "Tags": ["", ""],
