@@ -258,3 +258,6 @@ asset_images/
 csv_files/Items_List.csv
 csv_files/list_2.csv
 csv_files/output_00001.csv
+extra/
+*.csv
+

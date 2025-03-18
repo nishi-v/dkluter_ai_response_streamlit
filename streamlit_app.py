@@ -9,6 +9,8 @@ import csv
 import sys
 from streamlit.runtime.uploaded_file_manager import UploadedFile 
 import re
+import zipfile
+import shutil
 
 # Directories for saving images and CSV
 IMAGE_SAVE_DIR = "asset_images"
@@ -20,7 +22,7 @@ os.makedirs(CSV_SAVE_DIR, exist_ok=True)
 
 # Sample CSV Format
 sample_data = pd.DataFrame({
-    "Image": ["Path/to/Image1.png", "Path/to/Image2.jpg"],
+    "Image": ["Image1.png", "Image2.jpg"],
     "Types": ["Type1", "Type2"],
     "Title": ["", ""],
     "Description": ["", ""],
@@ -48,6 +50,38 @@ def save_uploaded_csv(uploaded_file:UploadedFile)->str:
     with open(csv_file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     return csv_file_path
+
+# Function to extract images from a zip file
+def extract_images_from_zip(zip_file:UploadedFile)->list:
+    # Clean the image directory first
+    shutil.rmtree(IMAGE_SAVE_DIR, ignore_errors=True)
+    os.makedirs(IMAGE_SAVE_DIR, exist_ok=True)
+    
+    extracted_files = []
+    
+    with zipfile.ZipFile(BytesIO(zip_file.getbuffer())) as z:
+        for filename in z.namelist():
+            # Only extract image files
+            lower_filename = filename.lower()
+            if lower_filename.endswith(('.jpg', '.jpeg', '.png')):
+                # Extract only files, not directories
+                if not filename.endswith('/'):
+                    z.extract(filename, IMAGE_SAVE_DIR)
+                    # Strip any directory structure and just get the basename
+                    base_filename = os.path.basename(filename)
+                    # If needed, move files from nested directories to the root image directory
+                    if filename != base_filename:
+                        extracted_path = os.path.join(IMAGE_SAVE_DIR, filename)
+                        target_path = os.path.join(IMAGE_SAVE_DIR, base_filename)
+                        # Create parent directories if they don't exist
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        # Move the file if it's not already there
+                        if os.path.exists(extracted_path) and extracted_path != target_path:
+                            shutil.move(extracted_path, target_path)
+                    
+                    extracted_files.append(base_filename)
+    
+    return extracted_files
 
 def get_csv_download_link(df: pd.DataFrame, file_path: str)-> str:
     """
@@ -161,6 +195,23 @@ def display_results(csv_path:str)->None:
     else:
         st.error("CSV file not found!")
 
+# Function to validate if image files in CSV exist in the extracted files
+def validate_csv_images(csv_path:str, extracted_files:list)->list:
+    if os.path.exists(csv_path):
+        try:
+            df = pd.read_csv(csv_path)
+            image_column = df["Image"]
+            
+            missing_images = []
+            for image in image_column:
+                if image != "SUMMARY" and image not in extracted_files:
+                    missing_images.append(image)
+            
+            return missing_images
+        except Exception as e:
+            return ["Error reading CSV: " + str(e)]
+    return ["CSV file not found"]
+
 # Streamlit UI
 st.title("Image Analysis Tool")
 
@@ -169,7 +220,9 @@ workflow = st.radio("Select Workflow", ["Upload Images", "Upload CSV"])
 
 if workflow == "Upload Images":
     # Textbox for CSV filename
-    csv_filename = st.text_input("Enter CSV filename (without extension)", value="output")
+    csv_filename = st.text_input("Enter a CSV filename (without extension)", value="output")
+
+    st.info("Upload single or multiple images!")
 
     # Upload multiple image files
     uploaded_files = st.file_uploader(
@@ -198,67 +251,66 @@ if workflow == "Upload Images":
             
             # Display image in the first column
             with col1:
-                st.image(file, width=100, caption=f"Image {i}")
+                st.image(file, width=100, caption=f"Image {i+1}")
             
             # Display type input in the second column
             with col2:
                 st.session_state.types[i] = st.text_input(
-                    f"Type for image {i}", 
+                    f"Type for image {i+1}", 
                     value=st.session_state.types[i],
-                    key=f"type_{i}"
+                    key=f"type_{i+1}"
                 )
 
-        # Button to save files and generate CSV
-        if st.button("Save Files"):
-            # Save images and prepare CSV data
-            csv_data = []
-            for i, file in enumerate(uploaded_files):
-                image_path = save_uploaded_image(file)  # Save each image
-                csv_data.append({
-                    "Image": file.name,
-                    "Types": st.session_state.types[i],
-                    "Title": "",
-                    "Description": "",
-                    "Tags": "",
-                    "Fields": ""
-                })
+        # Auto-save files and prepare CSV data when files are uploaded
+        csv_data = []
+        for i, file in enumerate(uploaded_files):
+            image_path = save_uploaded_image(file)  # Save each image
+            csv_data.append({
+                "Image": file.name,
+                "Types": st.session_state.types[i],
+                "Title": "",
+                "Description": "",
+                "Tags": "",
+                "Fields": ""
+            })
                 
-            # Generate CSV filename
-            csv_relative_name = f"{csv_filename}.csv"  
-            csv_full_path = os.path.join(CSV_SAVE_DIR, csv_relative_name)
+        # Generate CSV filename
+        csv_relative_name = f"{csv_filename}.csv"  
+        csv_full_path = os.path.join(CSV_SAVE_DIR, csv_relative_name)
 
-            # Define all field names
-            fieldnames = ["Image", "Types", "Title", "Description", "Tags", "Fields"]
+        # Define all field names
+        fieldnames = ["Image", "Types", "Title", "Description", "Tags", "Fields"]
 
-            # Write CSV file
-            with open(csv_full_path, "w", newline="") as file:
-                writer = csv.DictWriter(file, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(csv_data)
+        # Write CSV file
+        with open(csv_full_path, "w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(csv_data)
 
-            st.success(f"Images saved in '{IMAGE_SAVE_DIR}/' and CSV saved as '{csv_full_path}'")
+        # st.success(f"Images saved in '{IMAGE_SAVE_DIR}/' and CSV saved as '{csv_full_path}'")
 
-            # Store the relative CSV name for running the CLI
-            st.session_state["csv_name"] = csv_relative_name  
-            st.session_state["csv_full_path"] = csv_full_path
+        # Store the relative CSV name for running the CLI
+        st.session_state["csv_name"] = csv_relative_name  
+        st.session_state["csv_full_path"] = csv_full_path
 
     # Button to execute CLI command
     if "csv_name" in st.session_state:
         if st.button("Generate AI Response"):
-            command = [sys.executable, "main.py", "-f", st.session_state["csv_name"]]
-            
-            try:
-                result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=120)
-                st.success("Command executed successfully!")
+            with st.spinner("Generating Response..."):
+                command = [sys.executable, "main.py", "-f", st.session_state["csv_name"]]
                 
-                # Display the results
-                display_results(st.session_state["csv_full_path"])
-                
-            except subprocess.TimeoutExpired:
-                st.error("The command timed out! Please try again with a smaller dataset or check the system performance.")
-            except subprocess.CalledProcessError as e:
-                st.error("Error while executing command.")
-                st.text_area("Error Message", e.stderr)
+                try:
+                    result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=120)
+                    st.success("Command executed successfully!")
+                    
+                    # Display the results
+                    display_results(st.session_state["csv_full_path"])
+                    
+                except subprocess.TimeoutExpired:
+                    st.error("The command timed out! Please try again with a smaller dataset or check the system performance.")
+                except subprocess.CalledProcessError as e:
+                    st.error("Error while executing command.")
+                    st.text_area("Error Message", e.stderr)
 
 else:
     # CSV Upload workflow
@@ -268,28 +320,122 @@ else:
     st.dataframe(sample_data)  # Display example CSV structure
     st.markdown(get_sample_csv_download_link(sample_data), unsafe_allow_html=True)
     
+    # Upload CSV file
     uploaded_csv = st.file_uploader("Choose a CSV file", type=['csv'])
+
+    st.info("Create a zip file of all the images mentioned in CSV file and upload it here.")
+
+    # Upload ZIP file containing images
+    uploaded_zip = st.file_uploader("Upload ZIP file containing images", type=['zip'])
     
+     # Variables to track state
+    csv_path = None
+    extracted_files = []
+    csv_data = None
+
     if uploaded_csv is not None:
         # Save the uploaded CSV
         csv_path = save_uploaded_csv(uploaded_csv)
+
+        # Read the CSV data
+        try:
+            csv_data = pd.read_csv(csv_path)
+            # Initialize types in session state if needed
+            if "csv_types" not in st.session_state:
+                st.session_state.csv_types = csv_data["Types"].tolist()
+            elif len(st.session_state.csv_types) != len(csv_data):
+                st.session_state.csv_types = csv_data["Types"].tolist()
+        except Exception as e:
+            st.error(f"Error reading CSV: {str(e)}")
         
+    if uploaded_zip is not None:
+        # Extract images from ZIP
+        with st.spinner("Extracting images from ZIP file..."):
+            extracted_files = extract_images_from_zip(uploaded_zip)
+        
+        st.success(f"Successfully extracted {len(extracted_files)} images.")
+
+        # # Show the first few extracted images as preview
+        # if extracted_files:
+        #     st.subheader("Sample Extracted Images")
+        #     preview_count = min(5, len(extracted_files))
+        #     cols = st.columns(preview_count)
+            
+        #     for i in range(preview_count):
+        #         with cols[i]:
+        #             img_path = os.path.join(IMAGE_SAVE_DIR, extracted_files[i])
+        #             if os.path.exists(img_path):
+        #                 st.image(img_path, width=100, caption=extracted_files[i])
+
+    # Check if both CSV and ZIP have been uploaded
+    if csv_path and extracted_files and csv_data is not None:
+        # Validate that all images in the CSV exist in the extracted files
+        missing_images = validate_csv_images(csv_path, extracted_files)
+
+        if missing_images:
+            st.warning("Warning: The following images referenced in the CSV were not found in the ZIP file:")
+            for img in missing_images[:10]:  # Show first 10 missing images
+                st.write(f"- {img}")
+            if len(missing_images) > 10:
+                st.write(f"... and {len(missing_images) - 10} more.")
+
+         # Display images with type inputs side by side (similar to Upload Images workflow)
+        st.subheader("Preview Images and Types")
+
+        # Filter out summary row if it exists
+        display_data = csv_data[csv_data["Image"] != "SUMMARY"] if "SUMMARY" in csv_data["Image"].values else csv_data
+
+         # Display each image with its type input
+        for i, (_, row) in enumerate(display_data.iterrows()):
+            image_name = row['Image']
+            image_path = os.path.join(IMAGE_SAVE_DIR, image_name)
+            
+            # Create two columns layout for each image
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Display image if it exists
+                if os.path.exists(image_path):
+                    st.image(image_path, width=100, caption=f"Image: {i+1}")
+                else:
+                    st.warning(f"Image not found: {image_name}")
+            
+            with col2:
+                # Allow editing the type for each image
+                new_type = st.text_input(
+                    f"Type for image {i+1}", 
+                    value=row['Types'],
+                    key=f"type_{i+1}"
+                )
+
+                # Auto-update the type value in session state
+                st.session_state.csv_types[i] = new_type
+                
+                # Update the CSV data immediately when type changes
+                if new_type != row['Types']:
+                    csv_data.at[display_data.index[i], 'Types'] = new_type
+                    # Save the updated CSV
+                    csv_data.to_csv(csv_path, index=False)
+        # Auto-save updated types - this happens automatically when the types are changed above
+        st.info("Types are automatically updated as you change them")
+
         # Extract just the filename for the CLI command
         csv_filename = os.path.basename(csv_path)
-        
+
         # Button to process the uploaded CSV
         if st.button("Generate AI Response"):
-            command = [sys.executable, "main.py", "-f", csv_filename]
-            
-            try:
-                result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=120)
-                st.success("Command executed successfully!")
+            with st.spinner("Generating Response..."):
+                command = [sys.executable, "main.py", "-f", csv_filename]
                 
-                # Display the results
-                display_results(csv_path)
-                
-            except subprocess.TimeoutExpired:
-                st.error("The command timed out! Please try again with a smaller dataset or check the system performance.")
-            except subprocess.CalledProcessError as e:
-                st.error("Error while executing command.")
-                st.text_area("Error Message", e.stderr)
+                try:
+                    result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=120)
+                    st.success("Command executed successfully!")
+                    
+                    # Display the results
+                    display_results(csv_path)
+                    
+                except subprocess.TimeoutExpired:
+                    st.error("The command timed out! Please try again with a smaller dataset or check the system performance.")
+                except subprocess.CalledProcessError as e:
+                    st.error("Error while executing command.")
+                    st.text_area("Error Message", e.stderr)
