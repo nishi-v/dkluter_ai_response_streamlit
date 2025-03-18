@@ -116,7 +116,7 @@ def display_results(csv_path:str)->None:
         st.subheader("Analysis Results")
         
         # Display each image with its analysis
-        for i, (index, row) in enumerate(results_df.iterrows()):
+        for i, (_, row) in enumerate(results_df.iterrows()):
             with st.container():
                 st.markdown(f"### Image {i + 1}")
                 
@@ -136,6 +136,9 @@ def display_results(csv_path:str)->None:
                     st.markdown(f"**Title:** {row['Title']}")
                     st.markdown(f"**Description:**")
                     st.markdown(f"{row['Description']}")
+                    # Display Token Count
+                    st.markdown(f"**Input Token Count:** {int(row['Input Token Count'])}")
+                    st.markdown(f"**Output Token Count:** {int(row['Output Token Count'])}")
                 
                 with col3:
                     # Display tags as a list
@@ -150,7 +153,8 @@ def display_results(csv_path:str)->None:
                         st.markdown("**Fields:**")
                         
                         # Regular expression to match ", " ONLY when followed by another field pattern
-                        field_pattern = r', (?=[A-Za-z\s]+\(TEXT\)|[A-Za-z\s]+\(NUMBER\)|[A-Za-z\s]+\(DATE\))'
+                        # field_pattern = r',\s*(?=[A-Za-z\s-]+\((?:TEXT|NUMBER|DATE|LOCATION)\):)'
+                        field_pattern = r',\s*(?=[A-Za-z][A-Za-z\s\(\)-]+\([A-Z]+\):)'
                         
                         fields = re.split(field_pattern, row['Fields'])  # Split only at correct places
                         
@@ -172,18 +176,42 @@ def display_results(csv_path:str)->None:
                     st.metric("Failed", summary_row.get("Description", "").split(": ")[-1])
                 
                 with cols[1]:
-                    # Parse time from Fields or Tags
+                    # Parse time from Tags
                     total_time = summary_row.get("Tags", "")
                     if "Total:" in total_time:
                         full_time = total_time.split("Total:")[-1].strip()
                         st.metric("Total Processing Time", full_time)
-                
-                with cols[2]:
-                    # Parse time from Fields or Tags
+
+                    # Parse average time from Fields
                     time_text = summary_row.get("Fields", "")
                     if "Average:" in time_text:
                         avg_time = time_text.split("Average:")[-1].strip()
                         st.metric("Average Processing Time per Image", avg_time)
+                
+                with cols[2]:
+                    # Parse total input token from Time
+                    input_token_count = summary_row.get("Time", "")
+                    if "Total Input Tokens:" in input_token_count:
+                        total_input_tokens = input_token_count.split("Total Input Tokens:")[-1].strip()
+                        st.metric("Total Input Token Count", total_input_tokens)
+
+                    # Parse average input token from Input Token Count
+                    avg_input_token_count = summary_row.get("Input Token Count", "")
+                    if "Average Input Tokens:" in avg_input_token_count:
+                        avg_input_tokens = avg_input_token_count.split("Average Input Tokens:")[-1].strip()
+                        st.metric("Average Input Token Count per Image", avg_input_tokens)
+
+                    # Parse total output token from Output Token Count
+                    output_token_count = summary_row.get("Output Token Count", "")
+                    if "Total Output Tokens:" in output_token_count:
+                        total_output_tokens = output_token_count.split("Total Output Tokens:")[-1].strip()
+                        st.metric("Total Output Token Count", total_output_tokens)
+
+                    # Parse average output token from Json Response
+                    avg_output_token_count = summary_row.get("Json Response", "")
+                    if "Average Output Tokens:" in avg_output_token_count:
+                        avg_output_tokens = avg_output_token_count.split("Average Output Tokens:")[-1].strip()
+                        st.metric("Average Output Token Count per Image", avg_output_tokens)
         
         # Show raw data in expandable section
         with st.expander("Show CSV Output Data"):
@@ -191,6 +219,19 @@ def display_results(csv_path:str)->None:
 
         # 🔹 **Add Download Button**
         st.markdown(get_csv_download_link(updated_df, csv_path), unsafe_allow_html=True)
+
+        # Display Gemini pricing table
+        st.subheader("Gemini API Pricing")
+        pricing_data = {
+            "Pricing Type": ["Input price (Image/Text/Video)", "Output price", "Context caching price (Text/Image/Video)", "Context caching (storage)", "Grounding with Google Search"],
+            "Free Tier": ["Free of charge", "Free of charge", "Free of charge", "Free of charge, up to 1,000,000 tokens of storage per hour [Available March 31, 2025]", "Free of charge, up to 500 RPD"],
+            "Paid Tier (per 1M tokens in USD)": ["$0.10", "$0.40", "$0.025 / 1,000,000 tokens [Available March 31, 2025]", "$1.00 / 1,000,000 tokens per hour [Available March 31, 2025]", "1,500 RPD (free), then $35 / 1,000 requests"]
+        }
+
+        pricing_df = pd.DataFrame(pricing_data)
+        st.table(pricing_df)
+
+        st.markdown("Note: RPD stands for Requests Per Day. Also, Grounding with Search Tool is used for all the response generations for now.")
         
     else:
         st.error("CSV file not found!")
@@ -302,10 +343,13 @@ if workflow == "Upload Images":
                 try:
                     result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=180)
                     st.success("Command executed successfully!")
+
+                    # st.text_area("Command Output", result.stdout)
                     
                     # Display the results
                     display_results(st.session_state["csv_full_path"])
                     
+                    # Display Pricing
                 except subprocess.TimeoutExpired:
                     st.error("The command timed out! Please try again with a smaller dataset or check the system performance.")
                 except subprocess.CalledProcessError as e:
