@@ -300,7 +300,7 @@ if workflow == "Upload Images":
                 command = [sys.executable, "main.py", "-f", st.session_state["csv_name"]]
                 
                 try:
-                    result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=120)
+                    result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=180)
                     st.success("Command executed successfully!")
                     
                     # Display the results
@@ -428,7 +428,7 @@ else:
                 command = [sys.executable, "main.py", "-f", csv_filename]
                 
                 try:
-                    result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=120)
+                    result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=180)
                     st.success("Command executed successfully!")
                     
                     # Display the results
