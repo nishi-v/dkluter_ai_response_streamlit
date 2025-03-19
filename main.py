@@ -394,7 +394,7 @@ async def main_async():
 
         Each field must have: Meaningful 'field_name' (max 50 characters), Valid 'field_type', Non-empty 'field_value' (max 500 characters)
                 
-        Use search tool to identify relevant attributes. In case of a known product, identify model number, SKU, etc. E.g., for image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. 
+        Identify relevant attributes. Use search tool only if necessary but if it is used make sure to provide as many relevant results. In case of a known product, identify model number, SKU, etc. E.g., for image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. 
             
         Return the response strictly in following JSON format, without additional text, explanation, or preamble:
         {

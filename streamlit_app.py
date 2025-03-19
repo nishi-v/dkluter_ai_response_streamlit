@@ -98,6 +98,17 @@ def get_sample_csv_download_link(df):
     b64 = base64.b64encode(csv.encode()).decode()  # Encode CSV as Base64
     return f'<a href="data:file/csv;base64,{b64}" download="sample_template.csv">📥 Download Example CSV</a>'
 
+def display_fields(fields_text):
+    # Define a pattern that matches a field name followed by type and value
+    field_pattern = r'([A-Za-z][A-Za-z\s\(\)-]+)\(([A-Z]+)\):\s*([^*]+)'
+    
+    # Find all matches in the fields text
+    matches = re.findall(field_pattern, fields_text)
+    
+    # Display each field as a separate item
+    for field_name, field_type, field_value in matches:
+        st.markdown(f"- {field_name.strip()}({field_type}): {field_value.strip()}")
+
 # Function to display results from CSV
 def display_results(csv_path:str)->None:
     if os.path.exists(csv_path):
@@ -155,15 +166,27 @@ def display_results(csv_path:str)->None:
                     if 'Fields' in row and isinstance(row['Fields'], str) and row['Fields']:
                         st.markdown("**Fields:**")
                         
-                        # Regular expression to match ", " ONLY when followed by another field pattern
-                        # field_pattern = r',\s*(?=[A-Za-z\s-]+\((?:TEXT|NUMBER|DATE|LOCATION)\):)'
-                        field_pattern = r',\s*(?=[A-Za-z][A-Za-z\s\(\)-]+\([A-Z]+\):)'
+                        # Split fields by commas, but be careful with field format
+                        # This regex will match field patterns like "Field Name (TEXT): Value"
+                        field_pattern = r'([A-Za-z][A-Za-z\s\(\)-]+\([A-Z]+\):\s*[^,]+)'
                         
-                        fields = re.split(field_pattern, row['Fields'])  # Split only at correct places
+                        # Find all matches in the fields text
+                        matches = re.findall(field_pattern, row['Fields'])
                         
-                        for field in fields:
-                            st.markdown(f"- {field.strip()}")  # Display each field on a new line
-                
+                        # Display each field as a separate item
+                        for field in matches:
+                            field = field.strip()
+                            if field:  # Only display non-empty fields
+                                st.markdown(f"- {field}")
+                        
+                        # If no matches were found with the regex, fall back to simple comma splitting
+                        if not matches:
+                            fields = row['Fields'].split(',')
+                            for field in fields:
+                                field = field.strip()
+                                if field:  # Only display non-empty fields
+                                    st.markdown(f"- {field}")
+                                    
                 st.markdown("---")
         
         # Display summary separately

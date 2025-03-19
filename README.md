@@ -74,11 +74,11 @@ Note: Sample images are present in asset_images folder.
 Create a CSV file in desired format and save it in csv_files folder. 
 Ensure the CSV file follows this structure. The columns for Title, Description, Tags, Fields, Time, and JSON Response can be left empty—these will be automatically filled by the script.
 
-| S.No. | Image | Types | Title | Description | Tags | Fields | Time | Json Response |
-|----------|----------|----------|----------|----------|----------|----------|----------|----------|
-| 1 | img_name_1.jpg | type_1_1, type_1_2 | | | | | | |
-| 2 | img_name_1.jpg | type_2_1, type_2_2 | | | | | | |
-| 3 | img_name_1.jpg | type_3_1, type_3_2 | | | | | | |
+| S.No. | Image | Types | Title | Description | Tags | Fields | 
+|----------|----------|----------|----------|----------|----------|----------|
+| 1 | img_name_1.jpg | type_1_1, type_1_2 | | | | | 
+| 2 | img_name_1.jpg | type_2_1, type_2_2 | | | | | 
+| 3 | img_name_1.jpg | type_3_1, type_3_2 | | | | | 
 
 Note: 
 1. Sample CSV files with responses is present in csv_files
@@ -102,9 +102,9 @@ There are 5 arguments that you can pass with the python script-
 2. -T <type>: Specifies the types/categories associated with the image. This argument must be used along with -i.
 - It can also be used alone to get only the token count, without generating a response.
 
-### C. Universal Argument
+<!-- ### C. Universal Argument
 - Applicable to both batch and single-image processing:
-1. -t : Enables token count calculation for the input data (CSV file or image).
+1. -t : Enables token count calculation for the input data (CSV file or image). -->
 
 Usage:
 1. Batch Responses Using CSV
@@ -113,38 +113,38 @@ Usage:
 python3 main.py -f data.csv
 ```
 
-- Generate responses and get the token count for a CSV file:
+<!-- - Generate responses and get the token count for a CSV file:
 ```bash
 python3 main.py -f data.csv -t
-```
+``` -->
 
-- Generate responses and token count for a CSV file with a custom concurrency limit (e.g., 10):
+<!-- - Generate responses and token count for a CSV file with a custom concurrency limit (e.g., 10):
 ```bash
 python3 main.py -f data.csv -t -c 10
-```
+``` -->
 
 2. Single Responses 
-- Generate a response for a single image and retrieve the token count:
+<!-- - Generate a response for a single image and retrieve the token count:
 ```bash
 python3 main.py -i "img.jpg" -T "type_1, type_2, type_3" -t
-```
+``` -->
 
-- Generate a response for a single image (without token count): 
+- Generate a response for a single image: 
 ```bash
 python3 main.py -i "img.jpg" -T "type_1, type_2, type_3"
 ```
 
-- Get only the token count (without generating a response):
+<!-- - Get only the token count (without generating a response):
 ```bash
 python3 main.py -T "type_1, type_2, type_3"
-```
+``` -->
 
 
 Note:
 1. If batch input in CSV format is given, then output will be stored in that CSV file only with a SUMMARY row at the end.
 
-| SUMMARY | Total Images: | Successfully Processed: | Failed: | Total Time: | Average Time per Image: |
-|----------|----------|----------|----------|----------|----------|
+| SUMMARY | Total Images: | Successfully Processed: | Failed: | Total Time: | Average Time: | Total Input Tokens: | Average Input Tokens: | Total Output Tokens: | Average Output Tokens | Search Tool Used: |
+|----------|----------|----------|----------|----------|----------|----------|----------|----------|----------|----------|
 
 2. If single image and corresponding type is provided then an automatic new output_8.csv file will be saved in csv_files folder with the response.
 
