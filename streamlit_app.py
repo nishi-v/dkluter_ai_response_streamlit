@@ -139,6 +139,9 @@ def display_results(csv_path:str)->None:
                     # Display Token Count
                     st.markdown(f"**Input Token Count:** {int(row['Input Token Count'])}")
                     st.markdown(f"**Output Token Count:** {int(row['Output Token Count'])}")
+
+                    # Display Search Tool Usage
+                    st.markdown(f"**Search Tool Used:** {row['Search Tool Used']}")
                 
                 with col3:
                     # Display tags as a list
@@ -187,6 +190,12 @@ def display_results(csv_path:str)->None:
                     if "Average:" in time_text:
                         avg_time = time_text.split("Average:")[-1].strip()
                         st.metric("Average Processing Time per Image", avg_time)
+
+                    # Search Tool Usage
+                    search_used = summary_row.get("Json Response", "")
+                    if "Total Search Tool Usage:" in search_used:
+                        tool_used = search_used.split("Total Search Tool Usage:")[-1].strip()
+                        st.metric("Total Responses using Search Tool", tool_used)
                 
                 with cols[2]:
                     # Parse total input token from Time
@@ -207,8 +216,8 @@ def display_results(csv_path:str)->None:
                         total_output_tokens = output_token_count.split("Total Output Tokens:")[-1].strip()
                         st.metric("Total Output Token Count", total_output_tokens)
 
-                    # Parse average output token from Json Response
-                    avg_output_token_count = summary_row.get("Json Response", "")
+                    # Parse average output token from Search Tool Used
+                    avg_output_token_count = summary_row.get("Search Tool Used", "")
                     if "Average Output Tokens:" in avg_output_token_count:
                         avg_output_tokens = avg_output_token_count.split("Average Output Tokens:")[-1].strip()
                         st.metric("Average Output Token Count per Image", avg_output_tokens)
@@ -231,7 +240,7 @@ def display_results(csv_path:str)->None:
         pricing_df = pd.DataFrame(pricing_data)
         st.table(pricing_df)
 
-        st.markdown("Note: RPD stands for Requests Per Day. Also, Grounding with Search Tool is used for all the response generations for now.")
+        st.markdown("Note: RPD stands for Requests Per Day.")
         
     else:
         st.error("CSV file not found!")
@@ -345,6 +354,7 @@ if workflow == "Upload Images":
                     st.success("Command executed successfully!")
 
                     # st.text_area("Command Output", result.stdout)
+                    print("Command Output", result.stdout)
                     
                     # Display the results
                     display_results(st.session_state["csv_full_path"])
@@ -474,6 +484,9 @@ else:
                 try:
                     result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=180)
                     st.success("Command executed successfully!")
+
+                    # st.text_area("Command Output", result.stdout)
+                    print("Command Output", result.stdout)
                     
                     # Display the results
                     display_results(csv_path)

@@ -38,7 +38,7 @@ async def get_image(img_file: str) -> Image.Image:
 
 #     return token_count
 
-async def gen_response(api: str, img: Image.Image, types: list, prompt_text: str) -> tuple[dict, float, Any, Any]:
+async def gen_response(api: str, img: Image.Image, types: list, prompt_text: str) -> tuple[dict, float, Any, Any, str]:
     """
     Generate AI response using a thread pool to handle the synchronous API call.
     This allows multiple API calls to run concurrently without blocking the event loop.
@@ -75,7 +75,7 @@ async def gen_response(api: str, img: Image.Image, types: list, prompt_text: str
             )
         )
         end = time.time() - start_time
-        # print(f"Raw Response usage metadata: \n\n{response.usage_metadata}")
+        # print(f"Raw Response: \n\n{response}\n\n")
         if response.usage_metadata:
             output_token_count = response.usage_metadata.candidates_token_count
             input_token_count = response.usage_metadata.prompt_token_count
@@ -84,27 +84,40 @@ async def gen_response(api: str, img: Image.Image, types: list, prompt_text: str
             output_token_count = 0
             input_token_count = 0
 
+        if response.candidates and response.candidates[0].grounding_metadata:
+            grounding_chunks = response.candidates[0].grounding_metadata.grounding_chunks
+        else:
+            grounding_chunks = None
+
+        if grounding_chunks is None:
+            search_tool_used = "No"
+        elif grounding_chunks is not None:
+            search_tool_used = "Yes"
+        # print(f"Grounding chunks: {grounding_chunks}\n")
+        print(f"Grounding google Search tool used or not: {search_tool_used}")
+
+
         if response.text:
             raw_response = response.text.strip()
             # Remove markdown code block markers (```json ... ```)
             cleaned_json = re.sub(r"^```json\n|\n```$", "", raw_response)
             try:
-                return json.loads(cleaned_json), end, input_token_count, output_token_count
+                return json.loads(cleaned_json), end, input_token_count, output_token_count, search_tool_used
             except json.JSONDecodeError:
                 print(f"Error parsing JSON for image")
-                return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(end, 2), input_token_count, output_token_count
+                return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(end, 2), input_token_count, output_token_count, search_tool_used
         else:
-            return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(end, 2), input_token_count, output_token_count
+            return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(end, 2), input_token_count, output_token_count, search_tool_used
     except Exception as e:
         print(f"Error generating response: {e}")
-        return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(time.time() - start_time, 2), input_token_count, output_token_count
+        return {"Data": {"title": "", "description": "", "tags": [], "fields": []}}, round(time.time() - start_time, 2), input_token_count, output_token_count, search_tool_used
 
 def get_next_filename(dir: str) -> str:
     existing_files = glob.glob(os.path.join(dir, "output_*.csv"))  
     next_num = len(existing_files) + 1  
     return os.path.join(dir, f"output_{next_num:05d}.csv")
 
-async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text: str, api_key: str, count: bool) -> Dict[str, Any]:
+async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text: str, api_key: str) -> Dict[str, Any]:
     """Process a single image with the AI model"""
     img_file = os.path.join(img_dir, img_name)
     image = await get_image(img_file)
@@ -119,6 +132,7 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
             "Time": 0.0,
             "Input Token Count": "",
             "Output Token Count": "",
+            "Search Tool Used": "",
             "Json Response": ""
         }
 
@@ -126,9 +140,9 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
         full_prompt = prompt_text + f'\nThese are the tag categories to which the object belongs, which you can use as an additional reference to narrow down your search domain: "types": {types}'
 
         # Generate Response
-        response_data, time_taken, input_tokens, output_tokens = await gen_response(api_key, image, types, full_prompt)
+        response_data, time_taken, input_tokens, output_tokens, search_tool = await gen_response(api_key, image, types, full_prompt)
 
-        print(f"Response: {response_data}")
+        print(f"Response: {response_data}\n")
 
         print(f"Input Tokens: {input_tokens}")
         print(f"Output Tokens: {output_tokens}")
@@ -176,6 +190,7 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
             "Time": time_taken,
             "Input Token Count": input_tokens,
             "Output Token Count": output_tokens,
+            "Search Tool Used": search_tool,
             "Json Response": json_response
         }
 
@@ -191,10 +206,11 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
             "Time": 0.0,
             "Input Token Count": "",
             "Output Token Count": "",
+            "Search Tool Used": "",
             "Json Response": ""
         }
 
-async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, prompt_text: str, count: bool, max_concurrent: int = 5) -> None:
+async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, prompt_text: str, max_concurrent: int = 5) -> None:
     """Process all images from a CSV file with controlled concurrency"""
     print(f"Generating Responses...")
 
@@ -207,6 +223,7 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     output_total_tokens_all = 0
     successful_images = 0
     total_images = len(df)
+    search_tool_total_usage = 0
 
     # print(max_concurrent)
     
@@ -216,7 +233,7 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     async def limited_process(img_name: str, types: List[str]):
         """Process an image with a semaphore to limit concurrency"""
         async with semaphore:
-            return await process_img(img_name, img_dir, types, prompt_text, api_key, count)
+            return await process_img(img_name, img_dir, types, prompt_text, api_key)
 
     # Create tasks for all images
     tasks = []
@@ -239,6 +256,7 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
         time_taken = float(result.get("Time", 0))
         input_token_count = result.get("Input Token Count", 0)
         output_token_count = result.get("Output Token Count", 0)
+        search_tool_usage = result.get("Search Tool Used", 0)
         if time_taken > 0 and result.get("Title", ""):
             total_time += time_taken
             successful_images += 1
@@ -247,6 +265,10 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
             input_total_tokens_all += input_token_count
         if output_token_count:
             output_total_tokens_all += output_token_count
+        
+        if search_tool_usage == "Yes":
+            search_tool_total_usage += 1
+            
     
     # Calculating average time
     avg_time = total_time / successful_images if successful_images > 0 else 0
@@ -270,7 +292,8 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
         "Time": f"Total Input Tokens: {int(input_total_tokens_all)}",
         "Input Token Count": f"Average Input Tokens: {int(avg_input_tokens)}",
         "Output Token Count": f"Total Output Tokens: {int(output_total_tokens_all)}",
-        "Json Response": f"Average Output Tokens: {int(avg_output_tokens)}"
+        "Search Tool Used": f"Average Output Tokens: {int(avg_output_tokens)}",
+        "Json Response": f"Total Search Tool Usage: {int(search_tool_total_usage)}"
     }])
     
     # Combine the results with the summary
@@ -290,10 +313,11 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     print(f"Average Input Tokens per Image: {int(avg_input_tokens)}")
     print(f"Total Output Tokens: {int(output_total_tokens_all)}")
     print(f"Average Output Tokens per Image: {int(avg_output_tokens)}")
+    print(f"Total Search Tool Usage: {int(search_tool_total_usage)}")
     
     print(f"Processing complete! Results saved in {csv_file_path}.")
 
-async def process_single_img(single_img_file: str, object_type: str, img_dir: str, api_key: str, prompt_text: str, count: bool, csv_file_dir: str)-> None:
+async def process_single_img(single_img_file: str, object_type: str, img_dir: str, api_key: str, prompt_text: str, csv_file_dir: str)-> None:
     # Image
     img_file = os.path.join(img_dir, single_img_file)
     
@@ -302,7 +326,7 @@ async def process_single_img(single_img_file: str, object_type: str, img_dir: st
     
     print(f"Processing: {single_img_file}")
     
-    result = await process_img(single_img_file, img_dir, types, prompt_text, api_key, count)
+    result = await process_img(single_img_file, img_dir, types, prompt_text, api_key)
     
     # Create a new DataFrame with results
     results_df = pd.DataFrame([result])
@@ -323,7 +347,7 @@ async def main_async():
 
     # Add arguments
     parser.add_argument("-f", "--file", required=False, help="Name of the CSV file")
-    parser.add_argument("-t", "--token", required=False, action="store_true", help="Include it to count tokens")
+    # parser.add_argument("-t", "--token", required=False, action="store_true", help="Include it to count tokens")
     parser.add_argument("-T", "--type", required=False, help="Define types if only count token is required")
     parser.add_argument("-i", "--img", required=False, help="Name of single image for response generation")
     parser.add_argument("-c", "--concurrent", type=int, default=5, help="Maximum number of concurrent requests")
@@ -331,26 +355,26 @@ async def main_async():
     args = parser.parse_args()
     
     csv_file = args.file
-    should_count_tokens = args.token  # Will be true if -t is passed, otherwise false.
+    # should_count_tokens = args.token  # Will be true if -t is passed, otherwise false.
     object_type = args.type  # Give type of object, if only you want token count to be generated. No response will be generated.
     single_img_file = args.img  # Name of single image you want to generate response for.
     max_concurrent = args.concurrent  # Maximum number of concurrent requests
     
     if csv_file is not None:
         print(f"Received csv file: {csv_file}")
-        if should_count_tokens:
-            print("Token counts will be generated.")
-        else:
-            print("Token count will not be generated.")
+        # if should_count_tokens:
+        #     print("Token counts will be generated.")
+        # else:
+        #     print("Token count will not be generated.")
     elif csv_file is None and object_type is not None:
         if single_img_file is None:
             print(f"Only token count will be generated.")
         elif single_img_file is not None:
             print(f"Received image: {single_img_file}")
-            if should_count_tokens:
-                print("Token count will be generated.")
-            else:
-                print("Token count will not be generated.")
+            # if should_count_tokens:
+            #     print("Token count will be generated.")
+            # else:
+            #     print("Token count will not be generated.")
     elif csv_file is None and object_type is None:
         print("CSV file or Types is not provided. Exiting...")
         sys.exit(1)
@@ -417,7 +441,7 @@ async def main_async():
 
     if csv_file is not None:
         csv_file_path = os.path.join(csv_file_dir, csv_file)
-        await process_csv_file(csv_file_path, img_dir, GEMINI_API_KEY, prompt_text, should_count_tokens, max_concurrent)
+        await process_csv_file(csv_file_path, img_dir, GEMINI_API_KEY, prompt_text, max_concurrent)
     
     elif csv_file is None and object_type is not None:
         if single_img_file is None:
@@ -429,7 +453,7 @@ async def main_async():
             # print("Token count generated successfully.")
 
         elif single_img_file is not None:
-            await process_single_img(single_img_file, object_type, img_dir, GEMINI_API_KEY, prompt_text, should_count_tokens, csv_file_dir)
+            await process_single_img(single_img_file, object_type, img_dir, GEMINI_API_KEY, prompt_text, csv_file_dir)
     
     end_final = time.time() - start_final
     print(f"Total time taken in processing: {end_final}")
