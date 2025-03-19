@@ -208,7 +208,7 @@ def display_results(csv_path:str)->None:
                     avg_input_token_count = summary_row.get("Input Token Count", "")
                     if "Average Input Tokens:" in avg_input_token_count:
                         avg_input_tokens = avg_input_token_count.split("Average Input Tokens:")[-1].strip()
-                        st.metric("Average Input Token Count per Image", avg_input_tokens)
+                        st.metric("Avg Input Token Count per Image", avg_input_tokens)
 
                     # Parse total output token from Output Token Count
                     output_token_count = summary_row.get("Output Token Count", "")
@@ -220,7 +220,7 @@ def display_results(csv_path:str)->None:
                     avg_output_token_count = summary_row.get("Search Tool Used", "")
                     if "Average Output Tokens:" in avg_output_token_count:
                         avg_output_tokens = avg_output_token_count.split("Average Output Tokens:")[-1].strip()
-                        st.metric("Average Output Token Count per Image", avg_output_tokens)
+                        st.metric("Avg Output Token Count per Image", avg_output_tokens)
         
         # Show raw data in expandable section
         with st.expander("Show CSV Output Data"):
