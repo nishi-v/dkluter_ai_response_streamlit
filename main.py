@@ -27,22 +27,13 @@ async def get_image(img_file: str) -> Image.Image:
         print(f"Error fetching {img_file}: {e}")
         return None  # type: ignore
 
-# def count_tokens(api_key:str, prompt_text:str) -> Any:
-#     client = genai.Client(api_key = api_key)
 
-#     token_count = client.models.count_tokens(
-#         model='gemini-2.0-flash',
-#         contents=prompt_text,
-#     )
-#     print(f"Prompt tokens: {token_count}")
-
-#     return token_count
-
-async def gen_response(api: str, img: Image.Image, types: list, prompt_text: str) -> tuple[dict, float, Any, Any, str]:
+async def gen_response(api: str, img: Image.Image, categories: list, field_types: list, prompt_text: str, search_tool:bool) -> tuple[dict, float, Any, Any, str]:
     """
     Generate AI response using a thread pool to handle the synchronous API call.
     This allows multiple API calls to run concurrently without blocking the event loop.
     """
+
     client = genai.Client(api_key=api)
     model_id = "gemini-2.0-flash"
 
@@ -53,27 +44,34 @@ async def gen_response(api: str, img: Image.Image, types: list, prompt_text: str
     start_time = time.time()
     loop = asyncio.get_running_loop()
 
-    # token_count = client.models.count_tokens(
-    #     model='gemini-2.0-flash',
-    #     contents=prompt_text,
-    # )
-    # total_tokens = token_count.total_tokens
-
-    # print(f"Prompt tokens: {token_count}")
     try:
-        response = await loop.run_in_executor(
-            thread_pool,
-            lambda: client.models.generate_content(
-                model=model_id,
-                contents=[img, prompt_text],
-                config=GenerateContentConfig(
-                    temperature=0.0,
-                    seed=42,
-                    tools=[google_search_tool],
-                    response_modalities=["TEXT"],
+        if search_tool:
+            response = await loop.run_in_executor(
+                thread_pool,
+                lambda: client.models.generate_content(
+                    model=model_id,
+                    contents=[img, prompt_text],
+                    config=GenerateContentConfig(
+                        temperature=0.0,
+                        seed=42,
+                        tools=[google_search_tool],
+                        response_modalities=["TEXT"],
+                    )
                 )
             )
-        )
+        else:
+            response = await loop.run_in_executor(
+                thread_pool,
+                lambda: client.models.generate_content(
+                    model=model_id,
+                    contents=[img, prompt_text],
+                    config=GenerateContentConfig(
+                        temperature=0.0,
+                        seed=42
+                    )
+                )
+            )
+
         end = time.time() - start_time
         # print(f"Raw Response: \n\n{response}\n\n")
         if response.usage_metadata:
@@ -117,14 +115,15 @@ def get_next_filename(dir: str) -> str:
     next_num = len(existing_files) + 1  
     return os.path.join(dir, f"output_{next_num:05d}.csv")
 
-async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text: str, api_key: str) -> Dict[str, Any]:
+async def process_img(img_name: str, img_dir: str, categories: List[str], field_names:List[str], prompt_text: str, api_key: str, search_tool_usage: bool) -> Dict[str, Any]:
     """Process a single image with the AI model"""
     img_file = os.path.join(img_dir, img_name)
     image = await get_image(img_file)
     if image is None:
         return {
             "Image": img_name,
-            "Types": ", ".join(types),
+            "Categories": ", ".join(categories),
+            "Required Fields": ", ".join(field_names),
             "Title": "",
             "Description": "",
             "Tags": "",
@@ -137,10 +136,11 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
         }
 
     try:
-        full_prompt = prompt_text + f'\nThese are the tag categories to which the object belongs, which you can use as an additional reference to narrow down your search domain: "types": {types}'
+        full_prompt = prompt_text + f'\nThese are the tag categories to which the object belongs, which you can use as an additional reference to narrow down your search domain: "Categories": {categories}'
+        full_prompt = prompt_text + f'\nThese are the field names that are required, TRY YOUR BEST TO PROVIDE AT LEAST FIELDS, IN ADDITION TO ANY OTHER RELEVANT FIELDS as described earlier: "Required Fields": {field_names}'
 
         # Generate Response
-        response_data, time_taken, input_tokens, output_tokens, search_tool = await gen_response(api_key, image, types, full_prompt)
+        response_data, time_taken, input_tokens, output_tokens, search_tool = await gen_response(api_key, image, categories, field_names, full_prompt, search_tool_usage)
 
         print(f"Response: {response_data}\n")
 
@@ -148,10 +148,6 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
         print(f"Output Tokens: {output_tokens}")
 
         print(f"Processed: {img_name} in {time_taken:.2f} seconds")
-        # if count:
-        #     # Run token counting in thread pool since it's synchronous
-        #     await asyncio.get_running_loop().run_in_executor(
-        #         thread_pool, lambda: count_tokens(api_key, full_prompt))
 
         # Extract Data
         data = response_data.get("Data", {})
@@ -182,7 +178,8 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
         # Return the result
         return {
             "Image": img_name,
-            "Types": ", ".join(types),
+            "Categories": ", ".join(categories),
+            "Required Fields": ", ".join(field_names),
             "Title": title,
             "Description": description,
             "Tags": tags,
@@ -198,7 +195,8 @@ async def process_img(img_name: str, img_dir: str, types: List[str], prompt_text
         print(f"Error in getting response for {img_name}: {e}")
         return {
             "Image": img_name,
-            "Types": ", ".join(types),
+            "Categories": ", ".join(categories),
+            "Required Fields": ", ".join(field_names),
             "Title": "",
             "Description": "",
             "Tags": "",
@@ -217,6 +215,10 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     df = pd.read_csv(csv_file_path)
     df = df[df['Image'] != 'SUMMARY']
 
+    # Check if SearchTool column exists, if not, default to False
+    if 'SearchTool' not in df.columns:
+        df['SearchTool'] = False
+
     results = []
     total_time = 0
     input_total_tokens_all = 0
@@ -230,22 +232,31 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     # Create semaphore to limit concurrent API calls
     semaphore = asyncio.Semaphore(max_concurrent)
     
-    async def limited_process(img_name: str, types: List[str]):
+    async def limited_process(img_name: str, categories: List[str], req_field: List[str], search_tool: bool):
         """Process an image with a semaphore to limit concurrency"""
         async with semaphore:
-            return await process_img(img_name, img_dir, types, prompt_text, api_key)
+            return await process_img(img_name, img_dir, categories, req_field, prompt_text, api_key, search_tool)
 
-    # Create tasks for all images
+     # Create tasks for all images
     tasks = []
     for index, row in df.iterrows():
         img_name = row['Image']
         if img_name == 'SUMMARY':
             continue
             
-        types = row['Types'].split(', ') if isinstance(row['Types'], str) else []
-        print(f"Queueing {index+1}: {img_name}") #type:ignore
+        categories = row['Categories'].split(', ') if isinstance(row['Categories'], str) else []
+        req_fields = row['Required Fields'].split(', ') if isinstance(row['Required Fields'], str) else []
         
-        task = limited_process(img_name, types)
+        # Determine search tool usage
+        search_tool = row['SearchTool']
+        
+        # Convert to boolean if it's not already
+        if isinstance(search_tool, str):
+            search_tool = search_tool.lower() in ['true', '1', 'yes']
+        
+        print(f"Queueing {index+1}: {img_name} (Search Tool: {search_tool})") #type:ignore
+        
+        task = limited_process(img_name, categories, req_fields, search_tool)
         tasks.append(task)
     
     # Run all tasks concurrently with the semaphore controlling max concurrency
@@ -284,16 +295,17 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     # Add summary statistics
     summary_df = pd.DataFrame([{
         "Image": "SUMMARY",
-        "Types": f"Total Images: {total_images}",
-        "Title": f"Successfully Processed: {successful_images}",
-        "Description": f"Failed: {total_images - successful_images}",
-        "Tags": f"Total: {total_time:.2f}s",
-        "Fields": f"Average: {avg_time:.2f}s",
-        "Time": f"Total Input Tokens: {int(input_total_tokens_all)}",
-        "Input Token Count": f"Average Input Tokens: {int(avg_input_tokens)}",
-        "Output Token Count": f"Total Output Tokens: {int(output_total_tokens_all)}",
-        "Search Tool Used": f"Average Output Tokens: {int(avg_output_tokens)}",
-        "Json Response": f"Total Search Tool Usage: {int(search_tool_total_usage)}"
+        "Categories": f"Total Images: {total_images}",
+        "Required Fields": f"Successfully Processed: {successful_images}",
+        "Title": f"Failed: {total_images - successful_images}",
+        "Description": f"Total: {total_time:.2f}s",
+        "Tags": f"Average: {avg_time:.2f}s",
+        "Fields": f"Total Input Tokens: {int(input_total_tokens_all)}",
+        "Time": f"Average Input Tokens: {int(avg_input_tokens)}",
+        "Input Token Count": f"Total Output Tokens: {int(output_total_tokens_all)}",
+        "Output Token Count": f"Average Output Tokens: {int(avg_output_tokens)}",
+        "Search Tool Used": f"Total Search Tool Usage: {int(search_tool_total_usage)}",
+        "Json Response": ""
     }])
     
     # Combine the results with the summary
@@ -317,66 +329,24 @@ async def process_csv_file(csv_file_path: str, img_dir: str, api_key: str, promp
     
     print(f"Processing complete! Results saved in {csv_file_path}.")
 
-async def process_single_img(single_img_file: str, object_type: str, img_dir: str, api_key: str, prompt_text: str, csv_file_dir: str)-> None:
-    # Image
-    img_file = os.path.join(img_dir, single_img_file)
-    
-    # Type 
-    types = object_type.split(', ') if isinstance(object_type, str) else []
-    
-    print(f"Processing: {single_img_file}")
-    
-    result = await process_img(single_img_file, img_dir, types, prompt_text, api_key)
-    
-    # Create a new DataFrame with results
-    results_df = pd.DataFrame([result])
-    
-    # Format the Time column to have 2 decimal places
-    results_df['Time'] = results_df['Time'].apply(lambda x: f"{x:.2f}")
-    
-    csv_file_new = get_next_filename(csv_file_dir)
-    
-    # Save the results to CSV
-    results_df.to_csv(csv_file_new, index=False)
-    
-    print(f"Processing complete! Result saved in {csv_file_new}.")
-
 async def main_async():
     start_final = time.time()
     parser = argparse.ArgumentParser()
 
     # Add arguments
     parser.add_argument("-f", "--file", required=False, help="Name of the CSV file")
-    # parser.add_argument("-t", "--token", required=False, action="store_true", help="Include it to count tokens")
-    parser.add_argument("-T", "--type", required=False, help="Define types if only count token is required")
-    parser.add_argument("-i", "--img", required=False, help="Name of single image for response generation")
     parser.add_argument("-c", "--concurrent", type=int, default=5, help="Maximum number of concurrent requests")
     
     args = parser.parse_args()
     
     csv_file = args.file
-    # should_count_tokens = args.token  # Will be true if -t is passed, otherwise false.
-    object_type = args.type  # Give type of object, if only you want token count to be generated. No response will be generated.
-    single_img_file = args.img  # Name of single image you want to generate response for.
     max_concurrent = args.concurrent  # Maximum number of concurrent requests
+
     
     if csv_file is not None:
         print(f"Received csv file: {csv_file}")
-        # if should_count_tokens:
-        #     print("Token counts will be generated.")
-        # else:
-        #     print("Token count will not be generated.")
-    elif csv_file is None and object_type is not None:
-        if single_img_file is None:
-            print(f"Only token count will be generated.")
-        elif single_img_file is not None:
-            print(f"Received image: {single_img_file}")
-            # if should_count_tokens:
-            #     print("Token count will be generated.")
-            # else:
-            #     print("Token count will not be generated.")
-    elif csv_file is None and object_type is None:
-        print("CSV file or Types is not provided. Exiting...")
+    elif csv_file is None:
+        print("CSV file is not provided. Exiting...")
         sys.exit(1)
     
     prompt_text = """
@@ -390,11 +360,11 @@ async def main_async():
             
         ALWAYS generate relevant field name, type, value based on the objects and types provided. Field names should ALWAYS be in list format.
         
-        Field should ALWAYS be present and NON EMPTY. If field value can't be determined, provide best possible field. Field type can be: TEXT, NUMBER, DATE, LOCATION. Categorize alphanumeric values ('12 AB') and numbers with units ('15 mm') as TEXT. Numeric values ('123 45') should have whitespace removed and be categorized as NUMBER. If possible, add LOCATION type Field.
+        Field should ALWAYS be present and NON EMPTY. If field value can't be determined, provide best possible field. Field type can be: TEXT, NUMBER, DATE, LOCATION. Categorize alphanumeric values ('12 AB') and numbers with units ('15 mm') as TEXT. Numeric values ('123 45') should have whitespace removed and be categorized as NUMBER. If possible, add LOCATION type Field. Use INDIAN METRIC UNITS, not North American units for field values you return. AVOID GENERATING RANDOM AND UNNECESSARY FIELDS.
 
         Each field must have: Meaningful 'field_name' (max 50 characters), Valid 'field_type', Non-empty 'field_value' (max 500 characters)
                 
-        Identify relevant attributes. Use search tool only if necessary but if it is used make sure to provide as many relevant results. In case of a known product, identify model number, SKU, etc. E.g., for image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. 
+        Identify relevant attributes. Use search tool only if necessary but if it is used make sure to provide as many relevant results. In case of a known product, identify model number, SKU, etc. E.g., for image of a book - make sure to always search and fetch the title, author, publisher, ISBN number. Then, provide other relevant details from the web that will be useful to know for the user. Make sure to provide fields that are relevant to the category type provided. For example, height, length, width are not usually provided for the category type 'car'.   
             
         Return the response strictly in following JSON format, without additional text, explanation, or preamble:
         {
@@ -442,19 +412,7 @@ async def main_async():
     if csv_file is not None:
         csv_file_path = os.path.join(csv_file_dir, csv_file)
         await process_csv_file(csv_file_path, img_dir, GEMINI_API_KEY, prompt_text, max_concurrent)
-    
-    elif csv_file is None and object_type is not None:
-        if single_img_file is None:
-            prompt_text += f'\nThese are the tag categories to which the object belongs, which you can use as an additional reference to narrow down your search domain: "types": {object_type}' 
-            print(prompt_text)
-            print("\n")
-            # count_tokens(GEMINI_API_KEY, prompt_text)
 
-            # print("Token count generated successfully.")
-
-        elif single_img_file is not None:
-            await process_single_img(single_img_file, object_type, img_dir, GEMINI_API_KEY, prompt_text, csv_file_dir)
-    
     end_final = time.time() - start_final
     print(f"Total time taken in processing: {end_final}")
 

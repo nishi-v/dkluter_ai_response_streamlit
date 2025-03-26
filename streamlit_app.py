@@ -11,10 +11,13 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 import re
 import zipfile
 import shutil
+from typing import Optional
 
 # Directories for saving images and CSV
 IMAGE_SAVE_DIR = "asset_images"
 CSV_SAVE_DIR = "csv_files"
+
+st.set_page_config(page_title="D'Kluter Data Acqusition", layout="wide")
 
 # Ensure the directories exist
 os.makedirs(IMAGE_SAVE_DIR, exist_ok=True)
@@ -23,7 +26,8 @@ os.makedirs(CSV_SAVE_DIR, exist_ok=True)
 # Sample CSV Format
 sample_data = pd.DataFrame({
     "Image": ["Image1.png", "Image2.jpg"],
-    "Types": ["Type1, Type2", "Type3, Type4"],
+    "Categories": ["Category1, Category2", "Category3, Category4"],
+    "Reqiored Fields": ["Field1, Field2", "Field3, Field4"],
     "Title": ["", ""],
     "Description": ["", ""],
     "Tags": ["", ""],
@@ -98,19 +102,39 @@ def get_sample_csv_download_link(df):
     b64 = base64.b64encode(csv.encode()).decode()  # Encode CSV as Base64
     return f'<a href="data:file/csv;base64,{b64}" download="sample_template.csv">📥 Download Example CSV</a>'
 
-def display_fields(fields_text):
-    # Define a pattern that matches a field name followed by type and value
-    field_pattern = r'([A-Za-z][A-Za-z\s\(\)-]+)\(([A-Z]+)\):\s*([^*]+)'
+def parse_fields(fields_text:str)->list:
+    # If fields are empty or None, return empty list
+    if not fields_text or pd.isna(fields_text):
+        return []
+
+    # New parsing approach for your specific format
+    parsed_fields = []
     
-    # Find all matches in the fields text
-    matches = re.findall(field_pattern, fields_text)
+    # Split the input by comma to handle multiple fields
+    field_parts = fields_text.split(',')
     
-    # Display each field as a separate item
-    for field_name, field_type, field_value in matches:
-        st.markdown(f"- {field_name.strip()}({field_type}): {field_value.strip()}")
+    for part in field_parts:
+        # Attempt to parse each part
+        match = re.match(r'\s*(\w+)\s*\(([A-Z]+)\):\s*(.+)', part.strip())
+        if match:
+            name = match.group(1)
+            type_name = match.group(2)
+            values = match.group(3).split(',')
+            
+            # Clean and format the values
+            cleaned_values = [val.strip() for val in values if val.strip()]
+            
+            # Format the field
+            if cleaned_values:
+                # If multiple values, format them in parentheses
+                value_str = f"({', '.join(cleaned_values)})" if len(cleaned_values) > 1 else cleaned_values[0]
+                formatted_field = f"{name} ({type_name}): {value_str}"
+                parsed_fields.append(formatted_field)
+    
+    return parsed_fields
 
 # Function to display results from CSV
-def display_results(csv_path:str)->None:
+def display_results(csv_path:str)->Optional[pd.DataFrame]:
     if os.path.exists(csv_path):
         # Read the CSV file
         updated_df = pd.read_csv(csv_path)
@@ -166,30 +190,21 @@ def display_results(csv_path:str)->None:
                     if 'Fields' in row and isinstance(row['Fields'], str) and row['Fields']:
                         st.markdown("**Fields:**")
                         
-                        # Split fields by commas, but be careful with field format
-                        # This regex will match field patterns like "Field Name (TEXT): Value"
-                        field_pattern = r'([A-Za-z][A-Za-z\s\(\)-]+\([A-Z]+\):\s*[^,]+)'
-                        
-                        # Find all matches in the fields text
-                        matches = re.findall(field_pattern, row['Fields'])
-                        
-                        # Display each field as a separate item
-                        for field in matches:
-                            field = field.strip()
-                            if field:  # Only display non-empty fields
+                        try:
+                            # Parse fields using the new function
+                            parsed_fields = parse_fields(row['Fields'])
+                            
+                            # Display parsed fields
+                            for field in parsed_fields:
                                 st.markdown(f"- {field}")
                         
-                        # If no matches were found with the regex, fall back to simple comma splitting
-                        if not matches:
-                            fields = row['Fields'].split(',')
-                            for field in fields:
-                                field = field.strip()
-                                if field:  # Only display non-empty fields
-                                    st.markdown(f"- {field}")
+                        except Exception as e:
+                            # Fallback method if parsing fails
+                            st.warning(f"Error processing fields: {e}")
+                            st.markdown(f"- Raw Fields: {row['Fields']}")
                                     
                 st.markdown("---")
         
-        # Display summary separately
         if summary_row:
             st.subheader("Summary")
             summary_container = st.container()
@@ -197,50 +212,50 @@ def display_results(csv_path:str)->None:
                 cols = st.columns(3)
                 
                 with cols[0]:
-                    st.metric("Total Images", summary_row.get("Types", "").split(": ")[-1])
-                    st.metric("Successfully Processed", summary_row.get("Title", "").split(": ")[-1])
-                    st.metric("Failed", summary_row.get("Description", "").split(": ")[-1])
+                    st.metric("Total Images", summary_row.get("Categories", "").split(": ")[-1])
+                    st.metric("Successfully Processed", summary_row.get("Required Fields", "").split(": ")[-1])
+                    st.metric("Failed", summary_row.get("Title", "").split(": ")[-1])
                 
                 with cols[1]:
-                    # Parse time from Tags
-                    total_time = summary_row.get("Tags", "")
+                    # Parse time from Description
+                    total_time = summary_row.get("Description", "")
                     if "Total:" in total_time:
                         full_time = total_time.split("Total:")[-1].strip()
                         st.metric("Total Processing Time", full_time)
 
-                    # Parse average time from Fields
-                    time_text = summary_row.get("Fields", "")
+                    # Parse average time from Tags
+                    time_text = summary_row.get("Tags", "")
                     if "Average:" in time_text:
                         avg_time = time_text.split("Average:")[-1].strip()
                         st.metric("Average Processing Time per Image", avg_time)
 
                     # Search Tool Usage
-                    search_used = summary_row.get("Json Response", "")
+                    search_used = summary_row.get("Search Tool Used", "")
                     if "Total Search Tool Usage:" in search_used:
                         tool_used = search_used.split("Total Search Tool Usage:")[-1].strip()
                         st.metric("Total Responses using Search Tool", tool_used)
                 
                 with cols[2]:
-                    # Parse total input token from Time
-                    input_token_count = summary_row.get("Time", "")
+                    # Parse total input token from Fields
+                    input_token_count = summary_row.get("Fields", "")
                     if "Total Input Tokens:" in input_token_count:
                         total_input_tokens = input_token_count.split("Total Input Tokens:")[-1].strip()
                         st.metric("Total Input Token Count", total_input_tokens)
 
-                    # Parse average input token from Input Token Count
-                    avg_input_token_count = summary_row.get("Input Token Count", "")
+                    # Parse average input token from Time
+                    avg_input_token_count = summary_row.get("Time", "")
                     if "Average Input Tokens:" in avg_input_token_count:
                         avg_input_tokens = avg_input_token_count.split("Average Input Tokens:")[-1].strip()
                         st.metric("Avg Input Token Count per Image", avg_input_tokens)
 
-                    # Parse total output token from Output Token Count
-                    output_token_count = summary_row.get("Output Token Count", "")
+                    # Parse total output token from Input Token Count
+                    output_token_count = summary_row.get("Input Token Count", "")
                     if "Total Output Tokens:" in output_token_count:
                         total_output_tokens = output_token_count.split("Total Output Tokens:")[-1].strip()
                         st.metric("Total Output Token Count", total_output_tokens)
 
-                    # Parse average output token from Search Tool Used
-                    avg_output_token_count = summary_row.get("Search Tool Used", "")
+                    # Parse average output token from Output Token Count
+                    avg_output_token_count = summary_row.get("Output Token Count", "")
                     if "Average Output Tokens:" in avg_output_token_count:
                         avg_output_tokens = avg_output_token_count.split("Average Output Tokens:")[-1].strip()
                         st.metric("Avg Output Token Count per Image", avg_output_tokens)
@@ -249,7 +264,7 @@ def display_results(csv_path:str)->None:
         with st.expander("Show CSV Output Data"):
             st.dataframe(updated_df)
 
-        # 🔹 **Add Download Button**
+        # Add Download Button
         st.markdown(get_csv_download_link(updated_df, csv_path), unsafe_allow_html=True)
 
         # Display Gemini pricing table
@@ -263,10 +278,14 @@ def display_results(csv_path:str)->None:
         pricing_df = pd.DataFrame(pricing_data)
         st.table(pricing_df)
 
-        st.markdown("Note: RPD stands for Requests Per Day.")
+        st.markdown("Note: RPD stands for Requests Per Day. It is only applicable if you enabled Google Search Tool.")
+
+        return updated_df
         
     else:
         st.error("CSV file not found!")
+
+        return None
 
 # Function to validate if image files in CSV exist in the extracted files
 def validate_csv_images(csv_path:str, extracted_files:list)->list:
@@ -285,11 +304,61 @@ def validate_csv_images(csv_path:str, extracted_files:list)->list:
             return ["Error reading CSV: " + str(e)]
     return ["CSV file not found"]
 
+def prepare_csv_with_search_tool(csv_path:str, enable_search_tool:bool)->pd.DataFrame:
+    """
+    Prepare CSV by adding a SearchTool column based on global and individual settings
+    """
+    # Read the existing CSV
+    df = pd.read_csv(csv_path)
+    
+    # Remove SUMMARY row if it exists for processing
+    summary_row = None
+    if "SUMMARY" in df["Image"].values:
+        summary_row = df[df["Image"] == "SUMMARY"].iloc[0]
+        df = df[df["Image"] != "SUMMARY"]
+    
+    # Add SearchTool column
+    df['SearchTool'] = False
+    
+    # Iterate through rows to set SearchTool flag
+    for index, row in df.iterrows():
+        # Check global search tool setting first
+        if enable_search_tool:
+            # Check if this specific image is NOT disabled in override
+            if not st.session_state.override_search_tool.get(row['Image'], False):
+                df.at[index, 'SearchTool'] = True
+        else:
+            # If global search is disabled, use individual flags from CSV upload workflow
+            # Prioritize session state csv_search_tool_flags if available
+            if hasattr(st.session_state, 'csv_search_tool_flags'):
+                df.at[index, 'SearchTool'] = st.session_state.csv_search_tool_flags[index]
+    
+    # Add back the summary row if it existed
+    if summary_row is not None:
+        df = pd.concat([df, pd.DataFrame([summary_row])], ignore_index=True)
+    
+    # Save the updated CSV
+    df.to_csv(csv_path, index=False)
+    
+    return df
+
 # Streamlit UI
 st.title("Image Analysis Tool")
 
 # Choose workflow option
 workflow = st.radio("Select Workflow", ["Upload Images", "Upload CSV"])
+
+# Checkbox to enable google search tool usage
+enable_search_tool = st.checkbox("Enable Google Search Tool", help="When checked, allows the AI to use Google Search for additional context")
+if enable_search_tool:
+    st.success("Google Search Tool is Enabled for all images.")
+
+# Modify the session state initialization to include a flag to override global search
+if "override_search_tool" not in st.session_state:
+    st.session_state.override_search_tool = {}
+# Store generated results to prevent refresh.
+if 'generated_results' not in st.session_state:
+    st.session_state.generated_results = None
 
 if workflow == "Upload Images":
     # Textbox for CSV filename
@@ -304,35 +373,72 @@ if workflow == "Upload Images":
         accept_multiple_files=True
     )
 
-    # Initialize session state for types if it doesn't exist
-    if "types" not in st.session_state:
-        st.session_state.types = []
+    # Initialize session state for categories, required fields and google search tool usage, if it doesn't exist
+    if "category" not in st.session_state:
+        st.session_state.category = []
+    if "req_field" not in st.session_state:
+        st.session_state.req_field = []
+    if "search_tool_flags" not in st.session_state:
+        st.session_state.search_tool_flags = []
 
     # Ensure types list is the correct length
     if uploaded_files:
         # Resize the types list if needed
-        if len(st.session_state.types) < len(uploaded_files):
+        if len(st.session_state.category) < len(uploaded_files):
             # Extend the list with empty strings if there are new images
-            st.session_state.types.extend([""] * (len(uploaded_files) - len(st.session_state.types)))
-        elif len(st.session_state.types) > len(uploaded_files):
+            st.session_state.category.extend([""] * (len(uploaded_files) - len(st.session_state.category)))
+            st.session_state.req_field.extend([""] * (len(uploaded_files) - len(st.session_state.req_field)))
+            st.session_state.search_tool_flags.extend([False] * (len(uploaded_files) - len(st.session_state.search_tool_flags)))
+        elif len(st.session_state.category) > len(uploaded_files):
             # Trim the list if images were removed
-            st.session_state.types = st.session_state.types[:len(uploaded_files)]
+            st.session_state.category = st.session_state.category[:len(uploaded_files)]
+            st.session_state.req_field = st.session_state.req_field[:len(uploaded_files)]
+            st.session_state.search_tool_flags = st.session_state.search_tool_flags[:len(uploaded_files)] 
         
+        st.subheader("Preview of Data")
         # Display image previews and type inputs
         for i, file in enumerate(uploaded_files):
-            col1, col2 = st.columns([2, 1])
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
             
             # Display image in the first column
             with col1:
-                st.image(file, width=100, caption=f"Image {i+1}")
+                st.image(file, width=150, caption=f"Image {i+1}")
             
-            # Display type input in the second column
+            # Display category input in the second column
             with col2:
-                st.session_state.types[i] = st.text_input(
-                    f"Type for image {i+1}", 
-                    value=st.session_state.types[i],
-                    key=f"type_{i+1}"
+                st.session_state.category[i] = st.text_input(
+                    f"Category for image {i+1}", 
+                    value=st.session_state.category[i],
+                    key=f"category_{i+1}"
                 )
+
+            # Display required field input in the second column
+            with col3:
+                st.session_state.req_field[i] = st.text_input(
+                    f"Required Fields for image {i+1}", 
+                    value=st.session_state.req_field[i],
+                    key=f"req_fields_{i+1}"
+                )
+
+            # Display search tool checkbox in the third column
+            with col4:
+                # If global search is enabled, add an option to override
+                if enable_search_tool:
+                    # Use a checkbox to override global search setting
+                    override = st.checkbox(
+                        "Disable Search", 
+                        value=st.session_state.override_search_tool.get(file.name, False),
+                        key=f"override_search_{i+1}"
+                    )
+                    # Store the override status
+                    st.session_state.override_search_tool[file.name] = override
+                else:
+                    # If global search is disabled, use existing search tool checkbox
+                    st.session_state.search_tool_flags[i] = st.checkbox(
+                        f"Search Tool for Image {i+1}", 
+                        value=st.session_state.search_tool_flags[i],
+                        key=f"search_tool_{i+1}"
+                    )
 
         # Auto-save files and prepare CSV data when files are uploaded
         csv_data = []
@@ -340,7 +446,8 @@ if workflow == "Upload Images":
             image_path = save_uploaded_image(file)  # Save each image
             csv_data.append({
                 "Image": file.name,
-                "Types": st.session_state.types[i],
+                "Categories": st.session_state.category[i],
+                "Required Fields": st.session_state.req_field[i],
                 "Title": "",
                 "Description": "",
                 "Tags": "",
@@ -352,7 +459,7 @@ if workflow == "Upload Images":
         csv_full_path = os.path.join(CSV_SAVE_DIR, csv_relative_name)
 
         # Define all field names
-        fieldnames = ["Image", "Types", "Title", "Description", "Tags", "Fields"]
+        fieldnames = ["Image", "Categories", "Required Fields", "Title", "Description", "Tags", "Fields"]
 
         # Write CSV file
         with open(csv_full_path, "w", newline="") as file:
@@ -370,6 +477,10 @@ if workflow == "Upload Images":
     if "csv_name" in st.session_state:
         if st.button("Generate AI Response"):
             with st.spinner("Generating Response..."):
+                # Prepare CSV with SearchTool column
+                prepare_csv_with_search_tool(st.session_state["csv_full_path"], enable_search_tool)
+                
+                # Modify command to ALWAYS include the CSV
                 command = [sys.executable, "main.py", "-f", st.session_state["csv_name"]]
                 
                 try:
@@ -377,12 +488,12 @@ if workflow == "Upload Images":
                     st.success("Command executed successfully!")
 
                     # st.text_area("Command Output", result.stdout)
+
                     print("Command Output", result.stdout)
-                    
+
                     # Display the results
                     display_results(st.session_state["csv_full_path"])
                     
-                    # Display Pricing
                 except subprocess.TimeoutExpired:
                     st.error("The command timed out! Please try again with a smaller dataset or check the system performance.")
                 except subprocess.CalledProcessError as e:
@@ -417,32 +528,33 @@ else:
         # Read the CSV data
         try:
             csv_data = pd.read_csv(csv_path)
-            # Initialize types in session state if needed
-            if "csv_types" not in st.session_state:
-                st.session_state.csv_types = csv_data["Types"].tolist()
-            elif len(st.session_state.csv_types) != len(csv_data):
-                st.session_state.csv_types = csv_data["Types"].tolist()
+            # Initialize categories in session state if needed
+            if "csv_category" not in st.session_state:
+                st.session_state.csv_category = csv_data["Categories"].tolist()
+            elif len(st.session_state.csv_category) != len(csv_data):
+                st.session_state.csv_category = csv_data["Categories"].tolist()
+
+            # Initialize required fields in session state if needed
+            if "csv_req_field" not in st.session_state:
+                st.session_state.csv_req_field = csv_data["Required Fields"].tolist()
+            elif len(st.session_state.csv_req_field) != len(csv_data):
+                st.session_state.csv_req_field = csv_data["Required Fields"].tolist()
+
+            # Initialize search tool flags for each image
+            if 'csv_search_tool_flags' not in st.session_state:
+                st.session_state.csv_search_tool_flags = [False] * len(csv_data)
+            elif len(st.session_state.csv_search_tool_flags) != len(csv_data):
+                st.session_state.csv_search_tool_flags = [False] * len(csv_data)
+
         except Exception as e:
             st.error(f"Error reading CSV: {str(e)}")
-        
+            
     if uploaded_zip is not None:
         # Extract images from ZIP
         with st.spinner("Extracting images from ZIP file..."):
             extracted_files = extract_images_from_zip(uploaded_zip)
         
         st.success(f"Successfully extracted {len(extracted_files)} images.")
-
-        # # Show the first few extracted images as preview
-        # if extracted_files:
-        #     st.subheader("Sample Extracted Images")
-        #     preview_count = min(5, len(extracted_files))
-        #     cols = st.columns(preview_count)
-            
-        #     for i in range(preview_count):
-        #         with cols[i]:
-        #             img_path = os.path.join(IMAGE_SAVE_DIR, extracted_files[i])
-        #             if os.path.exists(img_path):
-        #                 st.image(img_path, width=100, caption=extracted_files[i])
 
     # Check if both CSV and ZIP have been uploaded
     if csv_path and extracted_files and csv_data is not None:
@@ -457,7 +569,7 @@ else:
                 st.write(f"... and {len(missing_images) - 10} more.")
 
          # Display images with type inputs side by side (similar to Upload Images workflow)
-        st.subheader("Preview Images and Types")
+        st.subheader("Preview of Data.")
 
         # Filter out summary row if it exists
         display_data = csv_data[csv_data["Image"] != "SUMMARY"] if "SUMMARY" in csv_data["Image"].values else csv_data
@@ -468,33 +580,70 @@ else:
             image_path = os.path.join(IMAGE_SAVE_DIR, image_name)
             
             # Create two columns layout for each image
-            col1, col2 = st.columns([2, 1])
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
             
             with col1:
                 # Display image if it exists
                 if os.path.exists(image_path):
-                    st.image(image_path, width=100, caption=f"Image: {i+1}")
+                    st.image(image_path, width=150, caption=f"Image: {i+1}")
                 else:
                     st.warning(f"Image not found: {image_name}")
             
             with col2:
-                # Allow editing the type for each image
-                new_type = st.text_input(
-                    f"Type for image {i+1}", 
-                    value=row['Types'],
-                    key=f"type_{i+1}"
+                # Allow editing the category for each image
+                new_category = st.text_input(
+                    f"Category for image {i+1}", 
+                    value=row['Categories'],
+                    key=f"category_{i+1}"
                 )
 
-                # Auto-update the type value in session state
-                st.session_state.csv_types[i] = new_type
+                # Auto-update the category value in session state
+                st.session_state.csv_category[i] = new_category
                 
-                # Update the CSV data immediately when type changes
-                if new_type != row['Types']:
-                    csv_data.at[display_data.index[i], 'Types'] = new_type
+                # Update the CSV data immediately when category changes
+                if new_category != row['Categories']:
+                    csv_data.at[display_data.index[i], 'Categories'] = new_category
                     # Save the updated CSV
                     csv_data.to_csv(csv_path, index=False)
+
+            with col3:
+                # Allow editing the Required Fields for each image
+                new_req_field = st.text_input(
+                    f"Required Fields for image {i+1}", 
+                    value=row['Required Fields'],
+                    key=f"req_fields_{i+1}"
+                )
+
+                # Auto-update the required fields value in session state
+                st.session_state.csv_req_field[i] = new_req_field
+                
+                # Update the CSV data immediately when category changes
+                if new_req_field != row['Required Fields']:
+                    csv_data.at[display_data.index[i], 'Required Fields'] = new_req_field
+                    # Save the updated CSV
+                    csv_data.to_csv(csv_path, index=False)
+
+            with col4:
+                # If global search is enabled, add an option to override
+                if enable_search_tool:
+                    # Use a checkbox to override global search setting
+                    override = st.checkbox(
+                        "Disable Search", 
+                        value=st.session_state.override_search_tool.get(image_name, False),
+                        key=f"override_search_{i+1}"
+                    )
+                    # Store the override status
+                    st.session_state.override_search_tool[image_name] = override
+                else:
+                    # If global search is disabled, use search tool checkbox
+                    st.session_state.csv_search_tool_flags[i] = st.checkbox(
+                        f"Search Tool", 
+                        value=st.session_state.csv_search_tool_flags[i],
+                        key=f"search_tool_{i+1}"
+                    )
+
         # Auto-save updated types - this happens automatically when the types are changed above
-        st.info("Types are automatically updated as you change them")
+        st.info("Categories and Required Fields are automatically updated as you change them.")
 
         # Extract just the filename for the CLI command
         csv_filename = os.path.basename(csv_path)
@@ -502,6 +651,13 @@ else:
         # Button to process the uploaded CSV
         if st.button("Generate AI Response"):
             with st.spinner("Generating Response..."):
+                # Prepare CSV with SearchTool column
+                prepare_csv_with_search_tool(csv_path, enable_search_tool)
+                
+                # Extract just the filename for the CLI command
+                csv_filename = os.path.basename(csv_path)
+                
+                # Modify command to ALWAYS include the CSV
                 command = [sys.executable, "main.py", "-f", csv_filename]
                 
                 try:
@@ -509,8 +665,9 @@ else:
                     st.success("Command executed successfully!")
 
                     # st.text_area("Command Output", result.stdout)
+
                     print("Command Output", result.stdout)
-                    
+
                     # Display the results
                     display_results(csv_path)
                     
@@ -519,3 +676,4 @@ else:
                 except subprocess.CalledProcessError as e:
                     st.error("Error while executing command.")
                     st.text_area("Error Message", e.stderr)
+
